@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── 身分驗證相關（Auth.js 需要）───
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── 核心資料表 ───
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  role          Role      @default(USER)
+  departmentId  String?
+  managerId     String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  department    Department?       @relation(fields: [departmentId], references: [id])
+  manager       User?             @relation("ManagerRelation", fields: [managerId], references: [id])
+  subordinates  User[]            @relation("ManagerRelation")
+  accounts      Account[]
+  sessions      Session[]
+  formSubmissions   FormSubmission[]
+  approvalActions   ApprovalAction[]
+  meetingBookings   MeetingBooking[]
+  meetingAttendees  MeetingAttendee[]
+  notifications     Notification[]
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  workflowConfigs   WorkflowConfig[]
+}
+
+// ─── 請假模組 ───
+
+model LeaveType {
+  id    String @id @default(cuid())
+  name  String @unique
+  code  String @unique
+
+  leaveRequests LeaveRequest[]
+}
+
+model LeaveBalance {
+  id          String @id @default(cuid())
+  userId      String
+  leaveTypeId String
+  year        Int
+  totalHours  Float
+  usedHours   Float  @default(0)
+
+  @@unique([userId, leaveTypeId, year])
+}
+
+model LeaveRequest {
+  id            String   @id @default(cuid())
+  submissionId  String   @unique
+  leaveTypeId   String
+  startDate     DateTime
+  endDate       DateTime
+  hours         Float
+  reason        String
+  attachmentUrl String?
+  createdAt     DateTime @default(now())
+
+  leaveType  LeaveType      @relation(fields: [leaveTypeId], references: [id])
+  submission FormSubmission  @relation(fields: [submissionId], references: [id])
+}
+
+// ─── 會議室模組 ───
+
+model MeetingRoom {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  location String?
+  capacity Int?
+  isActive Boolean @default(true)
+
+  bookings MeetingBooking[]
+}
+
+model MeetingBooking {
+  id          String   @id @default(cuid())
+  roomId      String
+  bookerId    String
+  date        DateTime
+  startTime   String
+  endTime     String
+  subject     String
+  isCancelled Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  room      MeetingRoom       @relation(fields: [roomId], references: [id])
+  booker    User              @relation(fields: [bookerId], references: [id])
+  attendees MeetingAttendee[]
+}
+
+model MeetingAttendee {
+  id        String @id @default(cuid())
+  bookingId String
+  userId    String
+
+  booking MeetingBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id])
+
+  @@unique([bookingId, userId])
+}
+
+// ─── 簽核流程模組 ───
+
+model WorkflowConfig {
+  id           String   @id @default(cuid())
+  departmentId String
+  formType     FormType
+  stepOrder    Int
+  approverRole String
+
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([departmentId, formType, stepOrder])
+}
+
+enum FormType {
+  LEAVE
+}
+
+model FormSubmission {
+  id          String     @id @default(cuid())
+  formType    FormType
+  applicantId String
+  status      FormStatus @default(PENDING)
+  currentStep Int        @default(1)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  applicant       User              @relation(fields: [applicantId], references: [id])
+  approvalActions ApprovalAction[]
+  leaveRequest    LeaveRequest?
+  notifications   Notification[]
+}
+
+enum FormStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ApprovalAction {
+  id           String          @id @default(cuid())
+  submissionId String
+  stepOrder    Int
+  approverId   String
+  action       ApprovalResult?
+  comment      String?
+  actedAt      DateTime?
+  createdAt    DateTime        @default(now())
+
+  submission FormSubmission @relation(fields: [submissionId], references: [id])
+  approver   User           @relation(fields: [approverId], references: [id])
+}
+
+enum ApprovalResult {
+  APPROVED
+  REJECTED
+}
+
+// ─── 通知模組 ───
+
+model Notification {
+  id           String   @id @default(cuid())
+  userId       String
+  submissionId String?
+  title        String
+  message      String
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user       User            @relation(fields: [userId], references: [id])
+  submission FormSubmission? @relation(fields: [submissionId], references: [id])
+}
+
+// ─── 系統管理模組 ───
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  target    String?
+  detail    String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+
+  @@map("system_settings")
+}
+
+model SmtpConfig {
+  id                String  @id @default(cuid())
+  host              String
+  port              Int
+  username          String
+  encryptedPassword String
+  senderName        String
+  senderEmail       String
+  encryption        String
+  isActive          Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+}
