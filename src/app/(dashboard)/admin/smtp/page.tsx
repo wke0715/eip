@@ -1,8 +1,13 @@
-export default function AdminSmtpPage() {
+import { getSmtpConfig } from "@/actions/admin";
+import { SmtpForm } from "./smtp-form";
+
+export default async function AdminSmtpPage() {
+  const config = await getSmtpConfig();
+
   return (
-    <div>
+    <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold">SMTP 管理</h1>
-      <p className="text-muted-foreground mt-2">SMTP 設定功能建置中</p>
+      <SmtpForm config={config} />
     </div>
   );
 }

@@ -1,8 +1,13 @@
-export default function AdminLogsPage() {
+import { getSystemLogs } from "@/actions/admin";
+import { LogTable } from "./log-table";
+
+export default async function AdminLogsPage() {
+  const { logs, total } = await getSystemLogs();
+
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold">系統 Log 管理</h1>
-      <p className="text-muted-foreground mt-2">Log 管理功能建置中</p>
+      <LogTable logs={logs} total={total} />
     </div>
   );
 }

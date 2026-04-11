@@ -1,8 +1,16 @@
-export default function AdminWorkflowPage() {
+import { getWorkflowConfigs, getDepartments } from "@/actions/admin";
+import { WorkflowManager } from "./workflow-manager";
+
+export default async function AdminWorkflowPage() {
+  const [configs, departments] = await Promise.all([
+    getWorkflowConfigs(),
+    getDepartments(),
+  ]);
+
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold">簽核流程設定</h1>
-      <p className="text-muted-foreground mt-2">簽核流程設定功能建置中</p>
+      <WorkflowManager configs={configs} departments={departments} />
     </div>
   );
 }
