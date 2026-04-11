@@ -1,8 +1,18 @@
-export default function InboxPage() {
+import { getInboxItems } from "@/actions/approval";
+import { InboxTabs } from "./inbox-tabs";
+
+export default async function InboxPage() {
+  const { pendingApprovals, notifications, completedApprovals } =
+    await getInboxItems();
+
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold">收件匣</h1>
-      <p className="text-muted-foreground mt-2">收件匣功能建置中</p>
+      <InboxTabs
+        pendingApprovals={pendingApprovals}
+        notifications={notifications}
+        completedApprovals={completedApprovals}
+      />
     </div>
   );
 }

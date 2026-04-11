@@ -1,8 +1,13 @@
-export default function OutboxPage() {
+import { getOutboxItems } from "@/actions/approval";
+import { OutboxTabs } from "./outbox-tabs";
+
+export default async function OutboxPage() {
+  const { pending, approved, rejected } = await getOutboxItems();
+
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold">寄件匣</h1>
-      <p className="text-muted-foreground mt-2">寄件匣功能建置中</p>
+      <OutboxTabs pending={pending} approved={approved} rejected={rejected} />
     </div>
   );
 }

@@ -1,8 +1,13 @@
-export default function NewLeavePage() {
+import { getLeaveTypes } from "@/actions/leave";
+import { LeaveForm } from "./leave-form";
+
+export default async function NewLeavePage() {
+  const leaveTypes = await getLeaveTypes();
+
   return (
-    <div>
+    <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold">新增請假單</h1>
-      <p className="text-muted-foreground mt-2">新增請假單功能建置中</p>
+      <LeaveForm leaveTypes={leaveTypes} />
     </div>
   );
 }
