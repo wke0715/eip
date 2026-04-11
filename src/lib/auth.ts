@@ -20,26 +20,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
 
-      // 檢查是否為初始管理員
-      if (user.email === initialAdminEmail) {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-        if (!existingUser) {
-          // 首次登入自動設為 ADMIN
-          await prisma.user.create({
-            data: {
-              email: user.email,
-              name: user.name,
-              image: user.image,
-              role: "ADMIN",
-            },
-          });
-        }
-        return true;
-      }
+      // 初始管理員永遠允許登入
+      if (user.email === initialAdminEmail) return true;
 
-      // 其他使用者需在白名單中
+      // 其他使用者需在白名單中且啟用
       const allowedUser = await prisma.user.findUnique({
         where: { email: user.email },
       });
@@ -59,6 +43,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
       return session;
+    },
+  },
+  events: {
+    async createUser({ user }) {
+      // 初始管理員首次登入時，PrismaAdapter 會自動建立 User，
+      // 這裡把角色升級為 ADMIN
+      const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
+      if (user.email === initialAdminEmail && user.id) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { role: "ADMIN" },
+        });
+      }
     },
   },
 });

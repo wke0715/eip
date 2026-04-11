@@ -15,9 +15,17 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // USER 存取 /admin/** → 403
-  if (pathname.startsWith("/admin") && req.auth.user.role !== "ADMIN") {
-    return new NextResponse("Forbidden", { status: 403 });
+  // 已登入但在登入頁 → 導向儀表板
+  if (pathname === "/login") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // USER 存取 /dashboard/admin/** → 導向 403 頁面
+  if (
+    pathname.startsWith("/dashboard/admin") &&
+    req.auth.user.role !== "ADMIN"
+  ) {
+    return NextResponse.redirect(new URL("/forbidden", req.url));
   }
 
   return NextResponse.next();
