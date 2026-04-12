@@ -23,8 +23,8 @@ describe("AES-256 加密/解密", () => {
     expect(encrypted1).not.toBe(encrypted2);
   });
 
-  it("加密結果格式應為 iv:encrypted", () => {
+  it("加密結果格式應為 iv:authTag:encrypted", () => {
     const encrypted = encrypt("test");
-    expect(encrypted).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
+    expect(encrypted).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/);
   });
 });

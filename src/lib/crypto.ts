@@ -1,6 +1,6 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-const ALGORITHM = "aes-256-cbc";
+const ALGORITHM = "aes-256-gcm";
 
 function getKey(): Buffer {
   const key = process.env.ENCRYPTION_KEY;
@@ -9,17 +9,20 @@ function getKey(): Buffer {
 }
 
 export function encrypt(text: string): string {
-  const iv = randomBytes(16);
+  const iv = randomBytes(12); // GCM 建議 12 bytes
   const cipher = createCipheriv(ALGORITHM, getKey(), iv);
   let encrypted = cipher.update(text, "utf8", "hex");
   encrypted += cipher.final("hex");
-  return `${iv.toString("hex")}:${encrypted}`;
+  const authTag = cipher.getAuthTag().toString("hex");
+  return `${iv.toString("hex")}:${authTag}:${encrypted}`;
 }
 
 export function decrypt(encryptedText: string): string {
-  const [ivHex, encrypted] = encryptedText.split(":");
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(":");
   const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
   const decipher = createDecipheriv(ALGORITHM, getKey(), iv);
+  decipher.setAuthTag(authTag);
   let decrypted = decipher.update(encrypted, "hex", "utf8");
   decrypted += decipher.final("utf8");
   return decrypted;
