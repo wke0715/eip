@@ -13,7 +13,7 @@ export async function markNotificationRead(notificationId: string) {
     data: { isRead: true },
   });
 
-  revalidatePath("/dashboard/inbox");
+  revalidatePath("/inbox");
 }
 
 export async function markAllNotificationsRead() {
@@ -25,7 +25,7 @@ export async function markAllNotificationsRead() {
     data: { isRead: true },
   });
 
-  revalidatePath("/dashboard/inbox");
+  revalidatePath("/inbox");
 }
 
 export async function getDashboardStats() {

@@ -17,11 +17,12 @@ import { Download } from "lucide-react";
 interface Log {
   id: string;
   userId: string | null;
+  userName: string | null;
   action: string;
   target: string | null;
   detail: string | null;
   ipAddress: string | null;
-  createdAt: Date;
+  createdAt: string;
 }
 
 export function LogTable({ logs, total }: { logs: Log[]; total: number }) {
@@ -68,25 +69,23 @@ export function LogTable({ logs, total }: { logs: Log[]; total: number }) {
             <TableHeader>
               <TableRow>
                 <TableHead>時間</TableHead>
+                <TableHead>姓名</TableHead>
                 <TableHead>操作類型</TableHead>
                 <TableHead>操作目標</TableHead>
                 <TableHead>詳細內容</TableHead>
-                <TableHead>操作者 ID</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {logs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString("zh-TW")}
+                    {log.createdAt}
                   </TableCell>
+                  <TableCell>{log.userName ?? "-"}</TableCell>
                   <TableCell>{log.action}</TableCell>
                   <TableCell>{log.target ?? "-"}</TableCell>
                   <TableCell className="max-w-xs truncate">
                     {log.detail ?? "-"}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {log.userId ?? "-"}
                   </TableCell>
                 </TableRow>
               ))}

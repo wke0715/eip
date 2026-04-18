@@ -34,7 +34,7 @@ function MobileNavLink({
         "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
         isActive
           ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
@@ -47,16 +47,22 @@ interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  companyName?: string;
 }
 
-export function MobileNav({ isOpen, onClose, isAdmin = false }: MobileNavProps) {
+export function MobileNav({
+  isOpen,
+  onClose,
+  isAdmin = false,
+  companyName = "企盉 EIP",
+}: MobileNavProps) {
   const pathname = usePathname();
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent side="left" className="w-64 p-0">
         <SheetHeader className="h-14 justify-center border-b px-4">
-          <SheetTitle className="text-lg font-bold">企盉 EIP</SheetTitle>
+          <SheetTitle className="text-lg font-bold">{companyName}</SheetTitle>
         </SheetHeader>
         <nav className="space-y-1 p-3">
           {userNavItems.map((item) => (

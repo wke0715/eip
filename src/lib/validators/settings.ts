@@ -16,8 +16,7 @@ export const smtpConfigSchema = z.object({
 });
 
 export const workflowConfigSchema = z.object({
-  departmentId: z.string().min(1, "請選擇部門"),
-  formType: z.enum(["LEAVE"]),
+  formType: z.enum(["LEAVE", "EXPENSE", "OTHER_EXPENSE", "OVERTIME"]),
   steps: z
     .array(
       z.object({

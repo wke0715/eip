@@ -9,7 +9,7 @@ import { userNavItems, adminNavItems, type NavItem } from "@/lib/navigation";
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const isActive =
     pathname === item.href ||
-    (item.href !== "/dashboard" && pathname.startsWith(item.href));
+    (item.href !== "/" && pathname.startsWith(item.href));
   const Icon = item.icon;
 
   return (
@@ -19,7 +19,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
         isActive
           ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
@@ -28,14 +28,20 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   );
 }
 
-export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
+export function Sidebar({
+  isAdmin = false,
+  companyName = "企盉 EIP",
+}: {
+  isAdmin?: boolean;
+  companyName?: string;
+}) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex w-60 flex-col border-r bg-background">
+    <aside className="hidden md:flex w-52 flex-col border-r bg-background">
       <div className="flex h-14 items-center border-b px-4">
-        <Link href="/dashboard" className="text-lg font-bold">
-          企盉 EIP
+        <Link href="/" className="text-lg font-bold">
+          {companyName}
         </Link>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">

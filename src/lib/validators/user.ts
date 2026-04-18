@@ -4,7 +4,6 @@ export const createUserSchema = z.object({
   email: z.email("Email 格式不正確"),
   name: z.string().min(1, "請填寫姓名").max(50, "姓名最多 50 字"),
   role: z.enum(["ADMIN", "USER"]),
-  departmentId: z.string().optional(),
   managerId: z.string().optional(),
 });
 

@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { encrypt } from "@/lib/crypto";
+import { encrypt, decrypt } from "@/lib/crypto";
 import { createUserSchema, updateUserSchema } from "@/lib/validators/user";
 import {
   updateSystemSettingSchema,
@@ -26,7 +26,6 @@ export async function getUsers() {
   await requireAdmin();
   return prisma.user.findMany({
     include: {
-      department: { select: { id: true, name: true } },
       manager: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -40,7 +39,6 @@ export async function createUser(formData: FormData) {
     email: formData.get("email"),
     name: formData.get("name"),
     role: formData.get("role"),
-    departmentId: formData.get("departmentId") || undefined,
     managerId: formData.get("managerId") || undefined,
   };
 
@@ -62,7 +60,7 @@ export async function createUser(formData: FormData) {
     },
   });
 
-  revalidatePath("/dashboard/admin/users");
+  revalidatePath("/admin/users");
 }
 
 export async function updateUser(formData: FormData) {
@@ -73,7 +71,6 @@ export async function updateUser(formData: FormData) {
     email: formData.get("email"),
     name: formData.get("name"),
     role: formData.get("role"),
-    departmentId: formData.get("departmentId") || undefined,
     managerId: formData.get("managerId") || undefined,
     isActive: formData.get("isActive") === "true",
   };
@@ -92,16 +89,32 @@ export async function updateUser(formData: FormData) {
     },
   });
 
-  revalidatePath("/dashboard/admin/users");
+  revalidatePath("/admin/users");
 }
 
-export async function getDepartments() {
-  return prisma.department.findMany({ orderBy: { name: "asc" } });
-}
+export async function deleteUser(id: string) {
+  const session = await requireAdmin();
 
-export async function createDepartment(name: string) {
-  await requireAdmin();
-  return prisma.department.create({ data: { name } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id } });
+
+  if (user.email === process.env.INITIAL_ADMIN_EMAIL) {
+    throw new Error("無法刪除初始管理員帳號");
+  }
+  if (user.id === session.user.id) {
+    throw new Error("無法刪除自己的帳號");
+  }
+
+  await prisma.user.delete({ where: { id } });
+
+  await prisma.systemLog.create({
+    data: {
+      userId: session.user.id,
+      action: "ADMIN_DELETE_USER",
+      target: user.email,
+    },
+  });
+
+  revalidatePath("/admin/users");
 }
 
 // ─── 系統 Log ───
@@ -118,7 +131,32 @@ export async function getSystemLogs(page = 1, pageSize = 50) {
     prisma.systemLog.count(),
   ]);
 
-  return { logs, total, page, pageSize };
+  // 批次查詢操作者姓名
+  const userIds = [...new Set(logs.map((l) => l.userId).filter(Boolean))] as string[];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, name: true, email: true },
+  });
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u.name ?? u.email]));
+
+  const fmt = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const logsWithName = logs.map((l) => ({
+    ...l,
+    createdAt: fmt.format(l.createdAt),
+    userName: l.userId ? (userMap[l.userId] ?? l.userId) : null,
+  }));
+
+  return { logs: logsWithName, total, page, pageSize };
 }
 
 export async function exportLogsAsCsv() {
@@ -169,7 +207,7 @@ export async function updateSystemSetting(formData: FormData) {
     },
   });
 
-  revalidatePath("/dashboard/admin/settings");
+  revalidatePath("/admin/settings");
 }
 
 // ─── SMTP 管理 ───
@@ -240,13 +278,130 @@ export async function updateSmtpConfig(formData: FormData) {
     },
   });
 
-  revalidatePath("/dashboard/admin/smtp");
+  revalidatePath("/admin/smtp");
 }
 
 export async function testSmtpConnection() {
+  const session = await requireAdmin();
+
+  const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
+  if (!config) throw new Error("尚未設定 SMTP，請先儲存設定");
+
+  const nodemailer = await import("nodemailer");
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.encryption === "SSL",
+    auth: {
+      user: config.username,
+      pass: decrypt(config.encryptedPassword),
+    },
+  });
+
+  const to = session.user.email!;
+
+  await transporter.sendMail({
+    from: `"${config.senderName}" <${config.senderEmail}>`,
+    to,
+    subject: "企盉 EIP — SMTP 測試信",
+    text: "這是一封 SMTP 連線測試信，收到代表設定正確。",
+    html: "<p>這是一封 <strong>SMTP 連線測試信</strong>，收到代表設定正確。</p>",
+  });
+
+  return { success: true, message: `測試信已寄送至 ${to}` };
+}
+
+// ─── 會議室管理 ───
+
+export async function getMeetingRoomsAdmin() {
   await requireAdmin();
-  // 預留：待 SMTP 設定完成後實作真實寄信
-  return { success: true, message: "SMTP 測試功能預留，待設定完成後啟用" };
+  return prisma.meetingRoom.findMany({
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function createMeetingRoom(formData: FormData) {
+  const session = await requireAdmin();
+
+  const name = (formData.get("name") as string)?.trim();
+  const location = (formData.get("location") as string)?.trim() || null;
+  const capacityRaw = formData.get("capacity") as string;
+  const capacity = capacityRaw ? parseInt(capacityRaw, 10) : null;
+
+  if (!name) throw new Error("請填寫會議室名稱");
+
+  const existing = await prisma.meetingRoom.findUnique({ where: { name } });
+  if (existing) throw new Error("此名稱已存在");
+
+  await prisma.meetingRoom.create({
+    data: { name, location, capacity },
+  });
+
+  await prisma.systemLog.create({
+    data: {
+      userId: session.user.id,
+      action: "ADMIN_CREATE_ROOM",
+      target: name,
+    },
+  });
+
+  revalidatePath("/admin/rooms");
+}
+
+export async function updateMeetingRoom(formData: FormData) {
+  const session = await requireAdmin();
+
+  const id = formData.get("id") as string;
+  const name = (formData.get("name") as string)?.trim();
+  const location = (formData.get("location") as string)?.trim() || null;
+  const capacityRaw = formData.get("capacity") as string;
+  const capacity = capacityRaw ? parseInt(capacityRaw, 10) : null;
+
+  if (!id) throw new Error("缺少會議室 ID");
+  if (!name) throw new Error("請填寫會議室名稱");
+
+  const conflict = await prisma.meetingRoom.findFirst({
+    where: { name, NOT: { id } },
+  });
+  if (conflict) throw new Error("此名稱已存在");
+
+  await prisma.meetingRoom.update({
+    where: { id },
+    data: { name, location, capacity },
+  });
+
+  await prisma.systemLog.create({
+    data: {
+      userId: session.user.id,
+      action: "ADMIN_UPDATE_ROOM",
+      target: name,
+    },
+  });
+
+  revalidatePath("/admin/rooms");
+}
+
+export async function toggleMeetingRoomStatus(id: string) {
+  const session = await requireAdmin();
+
+  const room = await prisma.meetingRoom.findUniqueOrThrow({ where: { id } });
+
+  await prisma.meetingRoom.update({
+    where: { id },
+    data: { isActive: !room.isActive },
+  });
+
+  await prisma.systemLog.create({
+    data: {
+      userId: session.user.id,
+      action: "ADMIN_UPDATE_ROOM",
+      target: room.name,
+      detail: JSON.stringify({ isActive: !room.isActive }),
+    },
+  });
+
+  revalidatePath("/admin/rooms");
 }
 
 // ─── 簽核流程設定 ───
@@ -254,8 +409,7 @@ export async function testSmtpConnection() {
 export async function getWorkflowConfigs() {
   await requireAdmin();
   return prisma.workflowConfig.findMany({
-    include: { department: { select: { id: true, name: true } } },
-    orderBy: [{ departmentId: "asc" }, { formType: "asc" }, { stepOrder: "asc" }],
+    orderBy: [{ formType: "asc" }, { stepOrder: "asc" }],
   });
 }
 
@@ -263,7 +417,6 @@ export async function upsertWorkflowConfig(formData: FormData) {
   const session = await requireAdmin();
 
   const raw = {
-    departmentId: formData.get("departmentId"),
     formType: formData.get("formType"),
     steps: JSON.parse(formData.get("steps") as string),
   };
@@ -273,15 +426,11 @@ export async function upsertWorkflowConfig(formData: FormData) {
   // 刪除舊的設定，重新建立
   await prisma.$transaction(async (tx) => {
     await tx.workflowConfig.deleteMany({
-      where: {
-        departmentId: parsed.departmentId,
-        formType: parsed.formType,
-      },
+      where: { formType: parsed.formType },
     });
 
     await tx.workflowConfig.createMany({
       data: parsed.steps.map((step) => ({
-        departmentId: parsed.departmentId,
         formType: parsed.formType,
         stepOrder: step.stepOrder,
         approverRole: step.approverRole,
@@ -293,10 +442,10 @@ export async function upsertWorkflowConfig(formData: FormData) {
     data: {
       userId: session.user.id,
       action: "ADMIN_UPDATE_WORKFLOW",
-      target: `${parsed.departmentId}/${parsed.formType}`,
+      target: parsed.formType,
       detail: JSON.stringify(parsed.steps),
     },
   });
 
-  revalidatePath("/dashboard/admin/workflow");
+  revalidatePath("/admin/workflow");
 }

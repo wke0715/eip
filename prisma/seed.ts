@@ -38,6 +38,13 @@ async function main() {
     });
   }
 
+  // 建立預設簽核流程（請假單 → 直屬主管）
+  await prisma.workflowConfig.upsert({
+    where: { formType_stepOrder: { formType: "LEAVE", stepOrder: 1 } },
+    update: {},
+    create: { formType: "LEAVE", stepOrder: 1, approverRole: "DIRECT_MANAGER" },
+  });
+
   console.log("Seed 完成");
 }
 

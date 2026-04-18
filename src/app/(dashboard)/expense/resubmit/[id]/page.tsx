@@ -1,0 +1,89 @@
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { resubmitExpenseReport } from "@/actions/expense";
+import { getMaxAttachmentSizeMb } from "@/lib/settings";
+import { ExpenseForm } from "../../new/expense-form";
+import type { ExpenseItemInput } from "@/lib/validators/expense";
+
+const TW_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+function toDateStr(d: Date) {
+  return new Date(d.getTime() + TW_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+export default async function ResubmitExpensePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const { id } = await params;
+
+  const submission = await prisma.formSubmission.findUnique({
+    where: { id },
+    include: {
+      expenseReport: {
+        include: { items: { orderBy: { date: "asc" } } },
+      },
+      attachment: true,
+    },
+  });
+
+  if (
+    !submission ||
+    submission.applicantId !== session.user.id ||
+    submission.status !== "REJECTED" ||
+    !submission.expenseReport ||
+    submission.expenseReport.deletedAt !== null
+  ) {
+    notFound();
+  }
+
+  const r = submission.expenseReport;
+
+  const items: ExpenseItemInput[] = r.items.map((it) => ({
+    date: toDateStr(it.date),
+    days: it.days,
+    workCategory: it.workCategory as ExpenseItemInput["workCategory"],
+    workDetail: it.workDetail,
+    mileageSubsidy: it.mileageSubsidy,
+    parkingFee: it.parkingFee,
+    etcFee: it.etcFee,
+    gasFee: it.gasFee,
+    transportType: it.transportType as ExpenseItemInput["transportType"],
+    transportAmount: it.transportAmount,
+    mealType: it.mealType as ExpenseItemInput["mealType"],
+    mealAmount: it.mealAmount,
+    otherKind: it.otherKind as ExpenseItemInput["otherKind"],
+    otherName: it.otherName,
+    otherAmount: it.otherAmount,
+    subtotal: it.subtotal,
+    receipts: it.receipts,
+    remark: it.remark,
+  }));
+
+  const boundAction = resubmitExpenseReport.bind(null, id);
+  const maxSizeMb = await getMaxAttachmentSizeMb();
+
+  return (
+    <div className="max-w-6xl space-y-6">
+      <h1 className="text-2xl font-bold">修改並重送出差旅費報告單</h1>
+      <ExpenseForm
+        defaultValues={{
+          formNumber: r.formNumber,
+          year: r.year,
+          month: r.month,
+          existingAttachmentName: submission.attachment?.fileName ?? null,
+          submissionId: id,
+          maxSizeMb,
+          items,
+        }}
+        submitAction={boundAction}
+        submitLabel="修改並重送"
+      />
+    </div>
+  );
+}

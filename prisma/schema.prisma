@@ -48,40 +48,29 @@ model VerificationToken {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
+  emailVerified DateTime?
   name          String?
   image         String?
   role          Role      @default(USER)
-  departmentId  String?
   managerId     String?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  department    Department?       @relation(fields: [departmentId], references: [id])
-  manager       User?             @relation("ManagerRelation", fields: [managerId], references: [id])
-  subordinates  User[]            @relation("ManagerRelation")
-  accounts      Account[]
-  sessions      Session[]
-  formSubmissions   FormSubmission[]
-  approvalActions   ApprovalAction[]
-  meetingBookings   MeetingBooking[]
-  meetingAttendees  MeetingAttendee[]
-  notifications     Notification[]
+  manager             User?             @relation("ManagerRelation", fields: [managerId], references: [id])
+  subordinates        User[]            @relation("ManagerRelation")
+  accounts            Account[]
+  sessions            Session[]
+  formSubmissions     FormSubmission[]
+  approvalActions     ApprovalAction[]
+  meetingBookings     MeetingBooking[]
+  meetingAttendees    MeetingAttendee[]
+  notifications       Notification[]
 }
 
 enum Role {
   ADMIN
   USER
-}
-
-model Department {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users             User[]
-  workflowConfigs   WorkflowConfig[]
 }
 
 // ─── 請假模組 ───
@@ -106,18 +95,21 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id            String   @id @default(cuid())
-  submissionId  String   @unique
+  id            String    @id @default(cuid())
+  submissionId  String    @unique
+  formNumber    String    @unique
   leaveTypeId   String
   startDate     DateTime
   endDate       DateTime
   hours         Float
   reason        String
-  attachmentUrl String?
-  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
 
   leaveType  LeaveType      @relation(fields: [leaveTypeId], references: [id])
-  submission FormSubmission  @relation(fields: [submissionId], references: [id])
+  submission FormSubmission @relation(fields: [submissionId], references: [id])
+
+  @@index([deletedAt])
 }
 
 // ─── 會議室模組 ───
@@ -163,33 +155,48 @@ model MeetingAttendee {
 
 model WorkflowConfig {
   id           String   @id @default(cuid())
-  departmentId String
   formType     FormType
   stepOrder    Int
   approverRole String
 
-  department Department @relation(fields: [departmentId], references: [id])
-
-  @@unique([departmentId, formType, stepOrder])
+  @@unique([formType, stepOrder])
 }
 
 enum FormType {
   LEAVE
+  EXPENSE
+  OTHER_EXPENSE
+  OVERTIME
 }
 
 model FormSubmission {
-  id          String     @id @default(cuid())
-  formType    FormType
-  applicantId String
-  status      FormStatus @default(PENDING)
-  currentStep Int        @default(1)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                    String     @id @default(cuid())
+  formType              FormType
+  applicantId           String
+  status                FormStatus @default(PENDING)
+  currentStep           Int        @default(1)
+  cancelledByApplicant  Boolean    @default(false)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
-  applicant       User              @relation(fields: [applicantId], references: [id])
-  approvalActions ApprovalAction[]
-  leaveRequest    LeaveRequest?
-  notifications   Notification[]
+  applicant           User                  @relation(fields: [applicantId], references: [id])
+  approvalActions     ApprovalAction[]
+  leaveRequest        LeaveRequest?
+  expenseReport       ExpenseReport?
+  otherExpenseRequest OtherExpenseRequest?
+  overtimeRequest     OvertimeRequest?
+  notifications       Notification[]
+  attachment          FormAttachment?
+}
+
+model FormAttachment {
+  id           String         @id @default(cuid())
+  submissionId String         @unique
+  fileName     String
+  mimeType     String
+  data         Bytes
+  createdAt    DateTime       @default(now())
+  submission   FormSubmission @relation(fields: [submissionId], references: [id])
 }
 
 enum FormStatus {
@@ -202,6 +209,7 @@ enum FormStatus {
 model ApprovalAction {
   id           String          @id @default(cuid())
   submissionId String
+  round        Int             @default(1)
   stepOrder    Int
   approverId   String
   action       ApprovalResult?
@@ -264,4 +272,202 @@ model SmtpConfig {
   encryption        String
   isActive          Boolean  @default(true)
   updatedAt         DateTime @updatedAt
+}
+
+// ─── 出差旅費報告單模組 ───
+
+enum TransportType {
+  A // 飛機
+  C // 計程車
+  T // 鐵路
+  M // 卡加值
+  S // 輪船
+}
+
+enum MealType {
+  A // 核實報支
+  B // 限額計算
+}
+
+enum OtherExpenseKind {
+  H // 住宿
+  O // 雜支
+}
+
+model ExpenseReport {
+  id            String    @id @default(cuid())
+  submissionId  String    @unique
+  formNumber    String    @unique
+  applicantId   String
+  year          Int
+  month         Int
+  totalAmount   Float     @default(0)
+  totalReceipts Int       @default(0)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  submission FormSubmission       @relation(fields: [submissionId], references: [id])
+  items      ExpenseReportItem[]
+
+  @@unique([applicantId, year, month])
+  @@index([applicantId])
+  @@index([deletedAt])
+}
+
+model ExpenseReportItem {
+  id              String          @id @default(cuid())
+  reportId        String
+  date            DateTime        @db.Date
+  days            Float           @default(1)
+  workCategory    String          // S業務 / C輔導 / T訓練 / O其他
+  workDetail      String          // 工作項目及起訖地點
+  mileageSubsidy  Float           @default(0)  // 私車補貼（里程×6）
+  parkingFee      Float           @default(0)
+  etcFee          Float           @default(0)
+  gasFee          Float           @default(0)
+  transportType   TransportType?
+  transportAmount Float           @default(0)
+  mealType        MealType?
+  mealAmount      Float           @default(0)
+  otherKind       OtherExpenseKind?
+  otherName       String?
+  otherAmount     Float           @default(0)
+  subtotal        Float           @default(0)
+  receipts        Int             @default(0)
+  remark          String?
+  createdAt       DateTime        @default(now())
+
+  report ExpenseReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([date])
+}
+
+// ─── 其他費用申請單模組 ───
+
+model OtherExpenseRequest {
+  id            String    @id @default(cuid())
+  submissionId  String    @unique
+  formNumber    String    @unique
+  applicantId   String
+  year          Int
+  month         Int
+  totalAmount   Float     @default(0)
+  totalReceipts Int       @default(0)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  submission FormSubmission    @relation(fields: [submissionId], references: [id])
+  items      OtherExpenseItem[]
+
+  @@unique([applicantId, year, month])
+  @@index([applicantId])
+  @@index([deletedAt])
+}
+
+model OtherExpenseItem {
+  id        String   @id @default(cuid())
+  requestId String
+  date      DateTime @db.Date
+  itemName  String   // 品名
+  purpose   String   // 用途
+  quantity  Float    @default(1)
+  unitPrice Float    @default(0)
+  subtotal  Float    @default(0)
+  receipts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  request OtherExpenseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([date])
+}
+
+// ─── 加班單模組 ───
+
+enum OvertimeDayType {
+  REST_DAY  // 休息日
+  HOLIDAY   // 國定假日
+}
+
+model OvertimeRequest {
+  id                 String    @id @default(cuid())
+  submissionId       String    @unique
+  formNumber         String    @unique
+  applicantId        String
+  year               Int
+  month              Int
+  totalWorkHours     Float     @default(0)
+  totalOvertimeHours Float     @default(0)
+  totalHolidayPay    Float     @default(0)
+  totalOvertimePay   Float     @default(0)
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  submission FormSubmission  @relation(fields: [submissionId], references: [id])
+  items      OvertimeItem[]
+
+  @@unique([applicantId, year, month])
+  @@index([applicantId])
+  @@index([deletedAt])
+}
+
+model OvertimeItem {
+  id               String          @id @default(cuid())
+  requestId        String
+  date             DateTime        @db.Date
+  workerName       String          // 加班人員
+  clientOrWork     String          // 客戶/工作內容
+  dayType          OvertimeDayType
+  workTime         String          // 例如 "09:00~16:30"
+  workHours        Float           @default(0)
+  overtimeHours    Float           @default(0)
+  holidayDoublePay Float           @default(0)  // 國定假日 2 倍薪資
+  overtimePay      Float           @default(0)  // 實際給付加班費
+  createdAt        DateTime        @default(now())
+
+  request OvertimeRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([date])
+}
+
+// ─── 人員行事曆模組 ───
+
+enum CalendarEventStatus {
+  CONFIRMED   // 藍色 — 預排已確認
+  TENTATIVE   // 粉紅 — 預排未定
+  COMPLETED   // 黑色 — 已完成
+  HOLIDAY     // 紅色 — 假日
+}
+
+model CalendarEvent {
+  id          String              @id @default(cuid())
+  date        DateTime            @db.Date
+  personName  String
+  amTask      String?
+  pmTask      String?
+  fullDayTask String?
+  status      CalendarEventStatus @default(CONFIRMED)
+  isHoliday   Boolean             @default(false)
+  weekNumber  Int?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([date, personName])
+  @@index([date])
+  @@index([personName])
+}
+
+model ClientCalendarEvent {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  event     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
 }

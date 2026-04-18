@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { AttendeePicker } from "./attendee-picker";
 
 interface Room {
   id: string;
@@ -16,9 +17,15 @@ interface Room {
   capacity: number | null;
 }
 
+interface User {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
 const timeSlots = generateTimeSlots();
 
-export function BookMeetingForm({ rooms }: { rooms: Room[] }) {
+export function BookMeetingForm({ rooms, users }: { rooms: Room[]; users: User[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +35,7 @@ export function BookMeetingForm({ rooms }: { rooms: Room[] }) {
     startTransition(async () => {
       try {
         await bookMeetingRoom(formData);
-        router.push("/dashboard/meeting");
+        router.push("/meeting");
       } catch (e) {
         setError(e instanceof Error ? e.message : "預約失敗");
       }
@@ -38,7 +45,13 @@ export function BookMeetingForm({ rooms }: { rooms: Room[] }) {
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit(new FormData(e.currentTarget));
+          }}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="roomId">會議室</Label>
             <select
@@ -109,17 +122,7 @@ export function BookMeetingForm({ rooms }: { rooms: Room[] }) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="attendeeEmails">
-              與會者 Email（選填，一行一個）
-            </Label>
-            <textarea
-              id="attendeeEmails"
-              name="attendeeEmails"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground"
-              placeholder={"user1@example.com\nuser2@example.com"}
-            />
-          </div>
+          <AttendeePicker users={users} />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

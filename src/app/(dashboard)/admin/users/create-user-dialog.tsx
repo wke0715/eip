@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createUser } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,23 +16,26 @@ import {
 import { Plus } from "lucide-react";
 
 interface Props {
-  departments: Array<{ id: string; name: string }>;
   managers: Array<{ id: string; name: string | null; email: string }>;
 }
 
-export function CreateUserDialog({ departments, managers }: Props) {
+export function CreateUserDialog({ managers }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(formData: FormData) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
+    const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
         await createUser(formData);
         setOpen(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "新增失敗");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "新增失敗");
       }
     });
   }
@@ -46,7 +50,7 @@ export function CreateUserDialog({ departments, managers }: Props) {
         <DialogHeader>
           <DialogTitle>新增使用者</DialogTitle>
         </DialogHeader>
-        <form action={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" name="email" type="email" required />
@@ -64,21 +68,6 @@ export function CreateUserDialog({ departments, managers }: Props) {
             >
               <option value="USER">USER</option>
               <option value="ADMIN">ADMIN</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="departmentId">部門</Label>
-            <select
-              id="departmentId"
-              name="departmentId"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-            >
-              <option value="">未指定</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
             </select>
           </div>
           <div className="space-y-2">

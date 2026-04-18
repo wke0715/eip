@@ -1,7 +1,6 @@
 import { getDashboardStats } from "@/actions/notification";
 import { getInboxItems } from "@/actions/approval";
 import { DashboardCards } from "./dashboard-cards";
-import { DashboardChart } from "./dashboard-chart";
 import { PendingApprovalList } from "./pending-approval-list";
 
 export default async function DashboardPage() {
@@ -20,8 +19,6 @@ export default async function DashboardPage() {
         approvedCount={stats.approvedCount}
         rejectedCount={stats.rejectedCount}
       />
-
-      <DashboardChart trendData={stats.trendData} />
 
       <PendingApprovalList items={stats.pendingCount > 0 ? inbox.pendingApprovals : []} />
     </div>

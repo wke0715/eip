@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 export async function approveForm(submissionId: string, comment?: string) {
@@ -10,15 +11,27 @@ export async function approveForm(submissionId: string, comment?: string) {
 
   const submission = await prisma.formSubmission.findUniqueOrThrow({
     where: { id: submissionId },
-    include: { approvalActions: { orderBy: { stepOrder: "asc" } } },
+    include: { approvalActions: { orderBy: [{ round: "asc" }, { stepOrder: "asc" }] } },
   });
 
   if (submission.status !== "PENDING") {
     throw new Error("此表單不在簽核中");
   }
 
+  // 找出當前 round（有待處理 action 的最小 round）
+  const pendingRounds = submission.approvalActions
+    .filter((a) => a.action === null)
+    .map((a) => a.round);
+  if (pendingRounds.length === 0) throw new Error("此表單不在簽核中");
+  const currentRound = Math.min(...pendingRounds);
+
+  // 只看當前 round 的 actions
+  const roundActions = submission.approvalActions.filter(
+    (a) => a.round === currentRound
+  );
+
   // 找到當前關卡
-  const currentAction = submission.approvalActions.find(
+  const currentAction = roundActions.find(
     (a) => a.stepOrder === submission.currentStep && a.approverId === session.user.id
   );
 
@@ -26,7 +39,7 @@ export async function approveForm(submissionId: string, comment?: string) {
     throw new Error("你不是當前關卡的簽核者");
   }
 
-  const totalSteps = submission.approvalActions.length;
+  const totalSteps = roundActions.length;
   const isLastStep = submission.currentStep >= totalSteps;
 
   await prisma.$transaction(async (tx) => {
@@ -76,8 +89,8 @@ export async function approveForm(submissionId: string, comment?: string) {
     }
   });
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/inbox");
+  revalidatePath("/");
+  revalidatePath("/inbox");
 }
 
 export async function rejectForm(submissionId: string, comment?: string) {
@@ -86,15 +99,25 @@ export async function rejectForm(submissionId: string, comment?: string) {
 
   const submission = await prisma.formSubmission.findUniqueOrThrow({
     where: { id: submissionId },
-    include: { approvalActions: { orderBy: { stepOrder: "asc" } } },
+    include: { approvalActions: { orderBy: [{ round: "asc" }, { stepOrder: "asc" }] } },
   });
 
   if (submission.status !== "PENDING") {
     throw new Error("此表單不在簽核中");
   }
 
+  // 找出當前 round（有待處理 action 的最小 round）
+  const pendingRoundsR = submission.approvalActions
+    .filter((a) => a.action === null)
+    .map((a) => a.round);
+  if (pendingRoundsR.length === 0) throw new Error("此表單不在簽核中");
+  const currentRoundR = Math.min(...pendingRoundsR);
+
   const currentAction = submission.approvalActions.find(
-    (a) => a.stepOrder === submission.currentStep && a.approverId === session.user.id
+    (a) =>
+      a.round === currentRoundR &&
+      a.stepOrder === submission.currentStep &&
+      a.approverId === session.user.id
   );
 
   if (!currentAction) {
@@ -123,17 +146,75 @@ export async function rejectForm(submissionId: string, comment?: string) {
     });
   });
 
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/inbox");
+  revalidatePath("/");
+  revalidatePath("/inbox");
+}
+
+export async function cancelSubmission(submissionId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("未登入");
+
+  const submission = await prisma.formSubmission.findUniqueOrThrow({
+    where: { id: submissionId },
+    include: { approvalActions: { orderBy: [{ round: "asc" }, { stepOrder: "asc" }] } },
+  });
+
+  if (submission.applicantId !== session.user.id) {
+    throw new Error("只能取回自己的申請");
+  }
+  if (submission.status !== "PENDING") {
+    throw new Error("只有簽核中的表單可以取回");
+  }
+
+  const pendingRounds = submission.approvalActions
+    .filter((a) => a.action === null)
+    .map((a) => a.round);
+  const currentRound =
+    pendingRounds.length > 0 ? Math.min(...pendingRounds) : null;
+  const currentAction =
+    currentRound !== null
+      ? submission.approvalActions.find(
+          (a) => a.round === currentRound && a.stepOrder === submission.currentStep
+        )
+      : undefined;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.formSubmission.update({
+      where: { id: submissionId },
+      data: { status: "REJECTED", cancelledByApplicant: true },
+    });
+
+    if (currentAction) {
+      await tx.approvalAction.update({
+        where: { id: currentAction.id },
+        data: {
+          action: "REJECTED",
+          comment: "申請人自行取回",
+          actedAt: new Date(),
+        },
+      });
+    }
+  });
+
+  revalidatePath("/");
+  revalidatePath("/outbox");
 }
 
 export async function getInboxItems() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
 
-  const [pendingApprovals, notifications, completedApprovals] =
+  const submissionInclude = {
+    applicant: { select: { name: true, email: true } },
+    leaveRequest: { include: { leaveType: true } },
+    expenseReport: true,
+    overtimeRequest: true,
+    otherExpenseRequest: true,
+  } satisfies Prisma.FormSubmissionInclude;
+
+  const [allPendingApprovals, notifications, completedApprovals] =
     await Promise.all([
-      // 代簽核
+      // 代簽核（先撈出再過濾 currentStep）
       prisma.approvalAction.findMany({
         where: {
           approverId: session.user.id,
@@ -141,12 +222,7 @@ export async function getInboxItems() {
           submission: { status: "PENDING" },
         },
         include: {
-          submission: {
-            include: {
-              applicant: { select: { name: true, email: true } },
-              leaveRequest: { include: { leaveType: true } },
-            },
-          },
+          submission: { include: submissionInclude },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -163,17 +239,17 @@ export async function getInboxItems() {
           action: { not: null },
         },
         include: {
-          submission: {
-            include: {
-              applicant: { select: { name: true, email: true } },
-              leaveRequest: { include: { leaveType: true } },
-            },
-          },
+          submission: { include: submissionInclude },
         },
         orderBy: { actedAt: "desc" },
         take: 50,
       }),
     ]);
+
+  // 只顯示輪到自己的關卡（stepOrder === submission.currentStep）
+  const pendingApprovals = allPendingApprovals.filter(
+    (a) => a.stepOrder === a.submission.currentStep
+  );
 
   return { pendingApprovals, notifications, completedApprovals };
 }
@@ -182,11 +258,27 @@ export async function getOutboxItems() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
 
+  const notDeleted = {
+    OR: [
+      { formType: "LEAVE", leaveRequest: { deletedAt: null } },
+      { formType: "EXPENSE", expenseReport: { deletedAt: null } },
+      { formType: "OVERTIME", overtimeRequest: { deletedAt: null } },
+      { formType: "OTHER_EXPENSE", otherExpenseRequest: { deletedAt: null } },
+    ],
+  } satisfies Prisma.FormSubmissionWhereInput;
+
+  const formInclude = {
+    leaveRequest: { include: { leaveType: true } },
+    expenseReport: true,
+    overtimeRequest: true,
+    otherExpenseRequest: true,
+  } satisfies Prisma.FormSubmissionInclude;
+
   const [pending, approved, rejected] = await Promise.all([
     prisma.formSubmission.findMany({
-      where: { applicantId: session.user.id, status: "PENDING" },
+      where: { applicantId: session.user.id, status: "PENDING", ...notDeleted },
       include: {
-        leaveRequest: { include: { leaveType: true } },
+        ...formInclude,
         approvalActions: {
           include: { approver: { select: { name: true, email: true } } },
           orderBy: { stepOrder: "asc" },
@@ -195,18 +287,47 @@ export async function getOutboxItems() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.formSubmission.findMany({
-      where: { applicantId: session.user.id, status: "APPROVED" },
-      include: { leaveRequest: { include: { leaveType: true } } },
+      where: { applicantId: session.user.id, status: "APPROVED", ...notDeleted },
+      include: formInclude,
       orderBy: { updatedAt: "desc" },
-      take: 50,
     }),
     prisma.formSubmission.findMany({
-      where: { applicantId: session.user.id, status: "REJECTED" },
-      include: { leaveRequest: { include: { leaveType: true } } },
+      where: { applicantId: session.user.id, status: "REJECTED", ...notDeleted },
+      include: formInclude,
       orderBy: { updatedAt: "desc" },
-      take: 50,
     }),
   ]);
 
   return { pending, approved, rejected };
+}
+
+export async function getSubmissionDetail(submissionId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("未登入");
+
+  return prisma.formSubmission.findUniqueOrThrow({
+    where: { id: submissionId },
+    include: {
+      applicant: { select: { name: true, email: true } },
+      leaveRequest: {
+        include: { leaveType: true },
+      },
+      expenseReport: {
+        include: { items: { orderBy: { date: "asc" } } },
+      },
+      otherExpenseRequest: {
+        include: { items: { orderBy: { date: "asc" } } },
+      },
+      overtimeRequest: {
+        include: { items: { orderBy: { date: "asc" } } },
+      },
+      approvalActions: {
+        include: {
+          approver: { select: { name: true, email: true } },
+        },
+        orderBy: [{ round: "asc" }, { stepOrder: "asc" }],
+      },
+      attachment: { select: { fileName: true } },
+    },
+  });
 }

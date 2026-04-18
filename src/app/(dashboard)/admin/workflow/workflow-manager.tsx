@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { upsertWorkflowConfig } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,152 +17,206 @@ import { Plus, Trash2 } from "lucide-react";
 
 interface WorkflowConfig {
   id: string;
-  departmentId: string;
   formType: string;
   stepOrder: number;
   approverRole: string;
-  department: { id: string; name: string };
 }
 
-interface Department {
+interface ApproverOption {
   id: string;
   name: string;
 }
 
-const APPROVER_ROLES = [
-  { value: "DIRECT_MANAGER", label: "直屬主管" },
-  { value: "DEPT_MANAGER", label: "部門主管" },
-  { value: "HR", label: "HR" },
-  { value: "CEO", label: "CEO" },
-];
+const FORM_TYPES = [
+  { value: "LEAVE", label: "請假單" },
+  { value: "EXPENSE", label: "出差旅費報告單" },
+  { value: "OTHER_EXPENSE", label: "其他費用申請單" },
+  { value: "OVERTIME", label: "加班單" },
+] as const;
+
+const FORM_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  FORM_TYPES.map((t) => [t.value, t.label]),
+);
+
+const USER_PREFIX = "USER:";
+
+const selectClass =
+  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs";
 
 interface Props {
   configs: WorkflowConfig[];
-  departments: Department[];
+  approverOptions: ApproverOption[];
 }
 
-export function WorkflowManager({ configs, departments }: Props) {
+function approverLabel(
+  approverRole: string,
+  approverOptions: ApproverOption[],
+): string {
+  if (approverRole === "DIRECT_MANAGER") return "直屬主管";
+  if (approverRole.startsWith(USER_PREFIX)) {
+    const id = approverRole.slice(USER_PREFIX.length);
+    const user = approverOptions.find((u) => u.id === id);
+    return user ? user.name : `未知使用者（${id}）`;
+  }
+  return approverRole;
+}
+
+type Step = { stepOrder: number; approverRole: string };
+
+function buildInitialSteps(
+  configs: WorkflowConfig[],
+): Record<string, Step[]> {
+  const map: Record<string, Step[]> = {};
+  for (const t of FORM_TYPES) {
+    const typeConfigs = configs
+      .filter((c) => c.formType === t.value)
+      .sort((a, b) => a.stepOrder - b.stepOrder);
+    map[t.value] =
+      typeConfigs.length > 0
+        ? typeConfigs.map((c) => ({
+            stepOrder: c.stepOrder,
+            approverRole: c.approverRole,
+          }))
+        : [{ stepOrder: 1, approverRole: "DIRECT_MANAGER" }];
+  }
+  return map;
+}
+
+export function WorkflowManager({ configs, approverOptions }: Props) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [selectedDept, setSelectedDept] = useState("");
-  const [steps, setSteps] = useState<
-    Array<{ stepOrder: number; approverRole: string }>
-  >([{ stepOrder: 1, approverRole: "DIRECT_MANAGER" }]);
-
-  // 按部門分組顯示現有設定
-  const grouped = configs.reduce(
-    (acc, c) => {
-      const key = `${c.department.name} / ${c.formType === "LEAVE" ? "請假單" : c.formType}`;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(c);
-      return acc;
-    },
-    {} as Record<string, WorkflowConfig[]>
+  const [selectedType, setSelectedType] = useState<string>("LEAVE");
+  const [stepsByType, setStepsByType] = useState<Record<string, Step[]>>(() =>
+    buildInitialSteps(configs),
   );
 
+  const steps = stepsByType[selectedType] ?? [];
+
+  const configsByType = useMemo(() => {
+    const map: Record<string, WorkflowConfig[]> = {};
+    for (const c of configs) {
+      if (!map[c.formType]) map[c.formType] = [];
+      map[c.formType].push(c);
+    }
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => a.stepOrder - b.stepOrder);
+    }
+    return map;
+  }, [configs]);
+
+  function updateStepsForType(update: (prev: Step[]) => Step[]) {
+    setStepsByType((prev) => ({
+      ...prev,
+      [selectedType]: update(prev[selectedType] ?? []),
+    }));
+  }
+
   function addStep() {
-    setSteps((prev) => [
+    updateStepsForType((prev) => [
       ...prev,
       { stepOrder: prev.length + 1, approverRole: "DIRECT_MANAGER" },
     ]);
   }
 
   function removeStep(index: number) {
-    setSteps((prev) =>
+    updateStepsForType((prev) =>
       prev
         .filter((_, i) => i !== index)
-        .map((s, i) => ({ ...s, stepOrder: i + 1 }))
+        .map((s, i) => ({ ...s, stepOrder: i + 1 })),
+    );
+  }
+
+  function updateStepApprover(index: number, approverRole: string) {
+    updateStepsForType((prev) =>
+      prev.map((s, j) => (j === index ? { ...s, approverRole } : s)),
     );
   }
 
   function handleSubmit() {
-    if (!selectedDept) {
-      setError("請選擇部門");
-      return;
-    }
     setError(null);
     setSuccess(null);
 
     const formData = new FormData();
-    formData.set("departmentId", selectedDept);
-    formData.set("formType", "LEAVE");
+    formData.set("formType", selectedType);
     formData.set("steps", JSON.stringify(steps));
 
     startTransition(async () => {
       try {
         await upsertWorkflowConfig(formData);
-        setSuccess("簽核流程已儲存");
+        setSuccess(
+          `${FORM_TYPE_LABELS[selectedType] ?? selectedType} 簽核流程已儲存`,
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : "儲存失敗");
       }
     });
   }
 
+  const hasAnyConfig = configs.length > 0;
+
   return (
     <div className="space-y-6">
-      {/* 現有設定 */}
-      {Object.keys(grouped).length > 0 && (
+      {hasAnyConfig && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">目前簽核流程</CardTitle>
           </CardHeader>
-          <CardContent>
-            {Object.entries(grouped).map(([key, items]) => (
-              <div key={key} className="mb-4 last:mb-0">
-                <p className="text-sm font-medium mb-2">{key}</p>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>關卡</TableHead>
-                      <TableHead>簽核者角色</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>第 {item.stepOrder} 關</TableCell>
-                        <TableCell>
-                          {APPROVER_ROLES.find(
-                            (r) => r.value === item.approverRole
-                          )?.label ?? item.approverRole}
-                        </TableCell>
+          <CardContent className="space-y-4">
+            {FORM_TYPES.map((t) => {
+              const typeConfigs = configsByType[t.value] ?? [];
+              if (typeConfigs.length === 0) return null;
+              return (
+                <div key={t.value}>
+                  <p className="text-sm font-medium mb-2">{t.label}</p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-24">關卡</TableHead>
+                        <TableHead>簽核者</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ))}
+                    </TableHeader>
+                    <TableBody>
+                      {typeConfigs.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>第 {item.stepOrder} 關</TableCell>
+                          <TableCell>
+                            {approverLabel(item.approverRole, approverOptions)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
 
-      {/* 新增/修改 */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">設定簽核流程</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>部門</Label>
-              <select
-                value={selectedDept}
-                onChange={(e) => setSelectedDept(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-              >
-                <option value="">選擇部門</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>表單類型</Label>
-              <Input value="請假單" disabled />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="formType">表單類型</Label>
+            <select
+              id="formType"
+              value={selectedType}
+              onChange={(e) => {
+                setSelectedType(e.target.value);
+                setError(null);
+                setSuccess(null);
+              }}
+              className={selectClass}
+            >
+              {FORM_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">
@@ -175,22 +228,19 @@ export function WorkflowManager({ configs, departments }: Props) {
                 </span>
                 <select
                   value={step.approverRole}
-                  onChange={(e) =>
-                    setSteps((prev) =>
-                      prev.map((s, j) =>
-                        j === i
-                          ? { ...s, approverRole: e.target.value }
-                          : s
-                      )
-                    )
-                  }
+                  onChange={(e) => updateStepApprover(i, e.target.value)}
                   className="flex h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
                 >
-                  {APPROVER_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
+                  <option value="DIRECT_MANAGER">直屬主管</option>
+                  {approverOptions.length > 0 && (
+                    <optgroup label="指定使用者">
+                      {approverOptions.map((u) => (
+                        <option key={u.id} value={`${USER_PREFIX}${u.id}`}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 {steps.length > 1 && (
                   <Button

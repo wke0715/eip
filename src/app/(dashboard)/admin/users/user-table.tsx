@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { updateUser } from "@/actions/admin";
+import { updateUser, deleteUser } from "@/actions/admin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Pencil, Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -28,29 +29,40 @@ interface User {
   name: string | null;
   role: "ADMIN" | "USER";
   isActive: boolean;
-  department: { id: string; name: string } | null;
   manager: { id: string; name: string | null; email: string } | null;
 }
 
 interface Props {
   users: User[];
-  departments: Array<{ id: string; name: string }>;
   managers: Array<{ id: string; name: string | null; email: string }>;
 }
 
-export function UserTable({ users, departments, managers }: Props) {
+export function UserTable({ users, managers }: Props) {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleUpdate(formData: FormData) {
+  function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
+    const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
         await updateUser(formData);
         setEditingUser(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "更新失敗");
+      }
+    });
+  }
+
+  function handleDelete(user: User) {
+    if (!confirm(`確定要刪除「${user.name ?? user.email}」？此操作無法復原。`)) return;
+    startTransition(async () => {
+      try {
+        await deleteUser(user.id);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "更新失敗");
+        alert(e instanceof Error ? e.message : "刪除失敗");
       }
     });
   }
@@ -70,8 +82,7 @@ export function UserTable({ users, departments, managers }: Props) {
                   <TableHead>姓名</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>角色</TableHead>
-                  <TableHead>部門</TableHead>
-                  <TableHead>主管</TableHead>
+                  <TableHead>直屬主管</TableHead>
                   <TableHead>狀態</TableHead>
                   <TableHead>操作</TableHead>
                 </TableRow>
@@ -86,7 +97,6 @@ export function UserTable({ users, departments, managers }: Props) {
                         {user.role}
                       </Badge>
                     </TableCell>
-                    <TableCell>{user.department?.name ?? "-"}</TableCell>
                     <TableCell>
                       {user.manager?.name ?? user.manager?.email ?? "-"}
                     </TableCell>
@@ -103,13 +113,27 @@ export function UserTable({ users, departments, managers }: Props) {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingUser(user)}
-                      >
-                        編輯
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setEditingUser(user)}
+                          title="編輯"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-red-500 hover:text-red-600"
+                          onClick={() => handleDelete(user)}
+                          disabled={isPending}
+                          title="刪除"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -125,7 +149,7 @@ export function UserTable({ users, departments, managers }: Props) {
             <DialogTitle>編輯使用者</DialogTitle>
           </DialogHeader>
           {editingUser && (
-            <form action={handleUpdate} className="space-y-4">
+            <form onSubmit={handleUpdate} className="space-y-4">
               <input type="hidden" name="id" value={editingUser.id} />
               <div className="space-y-2">
                 <Label>Email</Label>
@@ -148,21 +172,6 @@ export function UserTable({ users, departments, managers }: Props) {
                 >
                   <option value="USER">USER</option>
                   <option value="ADMIN">ADMIN</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>部門</Label>
-                <select
-                  name="departmentId"
-                  defaultValue={editingUser.department?.id ?? ""}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                >
-                  <option value="">未指定</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
                 </select>
               </div>
               <div className="space-y-2">

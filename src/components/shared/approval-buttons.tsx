@@ -4,7 +4,13 @@ import { useTransition } from "react";
 import { approveForm, rejectForm } from "@/actions/approval";
 import { Button } from "@/components/ui/button";
 
-export function ApprovalButtons({ submissionId }: { submissionId: string }) {
+export function ApprovalButtons({
+  submissionId,
+  onSuccess,
+}: {
+  submissionId: string;
+  onSuccess?: () => void;
+}) {
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -13,7 +19,10 @@ export function ApprovalButtons({ submissionId }: { submissionId: string }) {
         size="sm"
         disabled={isPending}
         onClick={() =>
-          startTransition(() => approveForm(submissionId))
+          startTransition(async () => {
+            await approveForm(submissionId);
+            onSuccess?.();
+          })
         }
       >
         核准
@@ -24,9 +33,10 @@ export function ApprovalButtons({ submissionId }: { submissionId: string }) {
         disabled={isPending}
         onClick={() => {
           const comment = prompt("退簽原因（選填）：");
-          startTransition(() =>
-            rejectForm(submissionId, comment ?? undefined)
-          );
+          startTransition(async () => {
+            await rejectForm(submissionId, comment ?? undefined);
+            onSuccess?.();
+          });
         }}
       >
         退簽

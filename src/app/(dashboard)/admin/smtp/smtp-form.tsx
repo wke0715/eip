@@ -21,6 +21,22 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // 用受控狀態管理欄位值，避免 Base UI FieldControl uncontrolled 警告
+  const [fields, setFields] = useState({
+    host: config?.host ?? "",
+    port: String(config?.port ?? 587),
+    username: config?.username ?? "",
+    password: "",
+    senderName: config?.senderName ?? "",
+    senderEmail: config?.senderEmail ?? "",
+    encryption: config?.encryption ?? "TLS",
+  });
+
+  function setField(key: keyof typeof fields) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setFields((prev) => ({ ...prev, [key]: e.target.value }));
+  }
+
   function handleSubmit(formData: FormData) {
     setError(null);
     setSuccess(null);
@@ -61,7 +77,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 id="host"
                 name="host"
                 required
-                defaultValue={config?.host ?? ""}
+                value={fields.host}
+                onChange={setField("host")}
                 placeholder="smtp.gmail.com"
               />
             </div>
@@ -72,7 +89,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 name="port"
                 type="number"
                 required
-                defaultValue={config?.port ?? 587}
+                value={fields.port}
+                onChange={setField("port")}
               />
             </div>
           </div>
@@ -84,7 +102,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 id="username"
                 name="username"
                 required
-                defaultValue={config?.username ?? ""}
+                value={fields.username}
+                onChange={setField("username")}
               />
             </div>
             <div className="space-y-2">
@@ -94,6 +113,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 name="password"
                 type="password"
                 required
+                value={fields.password}
+                onChange={setField("password")}
                 placeholder="每次儲存需重新輸入"
               />
             </div>
@@ -106,7 +127,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 id="senderName"
                 name="senderName"
                 required
-                defaultValue={config?.senderName ?? ""}
+                value={fields.senderName}
+                onChange={setField("senderName")}
                 placeholder="企盉 EIP 系統"
               />
             </div>
@@ -117,7 +139,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 name="senderEmail"
                 type="email"
                 required
-                defaultValue={config?.senderEmail ?? ""}
+                value={fields.senderEmail}
+                onChange={setField("senderEmail")}
               />
             </div>
           </div>
@@ -127,7 +150,8 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
             <select
               id="encryption"
               name="encryption"
-              defaultValue={config?.encryption ?? "TLS"}
+              value={fields.encryption}
+              onChange={setField("encryption")}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
             >
               <option value="TLS">TLS</option>
