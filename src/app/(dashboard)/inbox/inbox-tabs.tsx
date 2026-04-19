@@ -123,7 +123,11 @@ export function InboxTabs({
                           </p>
                         </div>
                         {!n.isRead && (
-                          <div onClick={(e) => e.stopPropagation()}>
+                          <div
+                            role="none"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
                             <MarkReadButton notificationId={n.id} />
                           </div>
                         )}

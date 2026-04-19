@@ -33,7 +33,7 @@ export async function importCalendarFromExcel(
     const { date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber } =
       parsed.data;
 
-    await _upsertEvent(date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber);
+    await _upsertEvent({ date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber });
     imported++;
   }
 
@@ -109,16 +109,17 @@ export async function getCalendarPersonNames(): Promise<string[]> {
 
 // ─── 內部 helper ───
 
-async function _upsertEvent(
-  date: string,
-  personName: string,
-  amTask: string | null | undefined,
-  pmTask: string | null | undefined,
-  fullDayTask: string | null | undefined,
-  status: string,
-  isHoliday: boolean | undefined,
-  weekNumber: number | null | undefined,
-) {
+async function _upsertEvent(p: {
+  date: string;
+  personName: string;
+  amTask: string | null | undefined;
+  pmTask: string | null | undefined;
+  fullDayTask: string | null | undefined;
+  status: string;
+  isHoliday: boolean | undefined;
+  weekNumber: number | null | undefined;
+}) {
+  const { date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber } = p;
   await prisma.calendarEvent.upsert({
     where: { date_personName: { date: new Date(date), personName } },
     update: {
@@ -162,7 +163,7 @@ export async function upsertCalendarEvent(input: {
   const { date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber } =
     parsed.data;
 
-  await _upsertEvent(date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber);
+  await _upsertEvent({ date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber });
 
   revalidatePath("/calendar");
   return { success: true, message: "儲存成功" };

@@ -107,7 +107,10 @@ export function CalendarEditDialog({ target, personNames, onClose, onSaved }: Pr
     ? target.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1 年 $2 月 $3 日")
     : "";
 
-  const saveButtonLabel = isPending ? "儲存中..." : isNew ? "新增" : "儲存";
+  let saveButtonLabel: string;
+  if (isPending) saveButtonLabel = "儲存中...";
+  else if (isNew) saveButtonLabel = "新增";
+  else saveButtonLabel = "儲存";
 
   return (
     <Dialog open={!!target} onOpenChange={(open) => { if (!open) onClose(); }}>
