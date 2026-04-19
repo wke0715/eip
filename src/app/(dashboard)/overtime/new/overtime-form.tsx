@@ -4,7 +4,6 @@ import { useState, useTransition, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { submitOvertimeRequest } from "@/actions/overtime";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 import {
   calcWorkHoursFromRange,
@@ -98,7 +97,7 @@ export function OvertimeForm({
           patch.workHours !== undefined
         ) {
           const wh =
-            patch.workHours !== undefined ? patch.workHours : merged.workHours;
+            patch.workHours === undefined ? merged.workHours : patch.workHours;
           const { doublePayHours, overtimeHours } = splitHolidayHours(wh, merged.dayType);
           merged.workHours = wh;
           merged.overtimeHours = overtimeHours;
@@ -280,24 +279,9 @@ export function OvertimeForm({
       </div>
 
       <div className="flex gap-6 text-sm text-muted-foreground">
-        <span>
-          總工作時數：
-          <strong className="text-foreground">
-            {totals.workHours.toFixed(1)}h
-          </strong>
-        </span>
-        <span>
-          總加班時數：
-          <strong className="text-foreground">
-            {totals.overtimeHours.toFixed(1)}h
-          </strong>
-        </span>
-        <span>
-          加班費合計：
-          <strong className="text-foreground">
-            ${totals.overtimePay.toLocaleString("zh-TW")}
-          </strong>
-        </span>
+        <span>總工作時數：<strong className="text-foreground">{totals.workHours.toFixed(1)}h</strong></span>
+        <span>總加班時數：<strong className="text-foreground">{totals.overtimeHours.toFixed(1)}h</strong></span>
+        <span>加班費合計：<strong className="text-foreground">${totals.overtimePay.toLocaleString("zh-TW")}</strong></span>
       </div>
     </ExpenseFormShell>
   );

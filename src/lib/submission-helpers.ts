@@ -18,6 +18,10 @@ export function toDateOnly(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00+08:00`);
 }
 
+export function toDateStr(d: Date): string {
+  return new Date(d.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 export function parseYearMonthItems(formData: FormData) {
   return {
     year: Number(formData.get("year")),
@@ -84,7 +88,7 @@ export async function createWorkflowApprovalsAndNotify(
     await tx.approvalAction.create({
       data: {
         submissionId: params.submissionId,
-        ...(params.round !== undefined ? { round: params.round } : {}),
+        ...(params.round === undefined ? {} : { round: params.round }),
         stepOrder: a.stepOrder,
         approverId: a.approverId,
       },
@@ -96,7 +100,7 @@ export async function createWorkflowApprovalsAndNotify(
   const firstAction = await tx.approvalAction.findFirst({
     where: {
       submissionId: params.submissionId,
-      ...(params.round !== undefined ? { round: params.round } : {}),
+      ...(params.round === undefined ? {} : { round: params.round }),
       stepOrder: 1,
     },
   });

@@ -3,14 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resubmitOvertimeRequest } from "@/actions/overtime";
 import { getMaxAttachmentSizeMb } from "@/lib/settings";
+import { toDateStr } from "@/lib/submission-helpers";
 import { OvertimeForm } from "../../new/overtime-form";
 import type { OvertimeItemInput } from "@/lib/validators/overtime";
-
-const TW_OFFSET_MS = 8 * 60 * 60 * 1000;
-
-function toDateStr(d: Date) {
-  return new Date(d.getTime() + TW_OFFSET_MS).toISOString().slice(0, 10);
-}
 
 export default async function ResubmitOvertimePage({
   params,

@@ -47,7 +47,7 @@ function parseAndValidateLeaveForm(formData: FormData) {
 function getTaipeiDateStr(): string {
   const now = new Date();
   const taipeiDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  return taipeiDate.toISOString().slice(0, 10).replace(/-/g, "");
+  return taipeiDate.toISOString().slice(0, 10).replaceAll("-", "");
 }
 
 async function generateLeaveFormNumber(tx: TxClient, dateStr: string): Promise<string> {
@@ -60,8 +60,8 @@ async function generateLeaveFormNumber(tx: TxClient, dateStr: string): Promise<s
 
   let nextSeq = 1;
   if (latest) {
-    const seq = parseInt(latest.formNumber.slice(-4), 10);
-    if (!isNaN(seq)) nextSeq = seq + 1;
+    const seq = Number.parseInt(latest.formNumber.slice(-4), 10);
+    if (!Number.isNaN(seq)) nextSeq = seq + 1;
   }
 
   return `${dateStr}-${String(nextSeq).padStart(4, "0")}`;

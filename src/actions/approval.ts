@@ -172,11 +172,11 @@ export async function cancelSubmission(submissionId: string) {
   const currentRound =
     pendingRounds.length > 0 ? Math.min(...pendingRounds) : null;
   const currentAction =
-    currentRound !== null
-      ? submission.approvalActions.find(
+    currentRound === null
+      ? undefined
+      : submission.approvalActions.find(
           (a) => a.round === currentRound && a.stepOrder === submission.currentStep
-        )
-      : undefined;
+        );
 
   await prisma.$transaction(async (tx) => {
     await tx.formSubmission.update({

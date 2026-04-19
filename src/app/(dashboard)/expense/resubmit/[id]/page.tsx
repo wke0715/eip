@@ -3,14 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resubmitExpenseReport } from "@/actions/expense";
 import { getMaxAttachmentSizeMb } from "@/lib/settings";
+import { toDateStr } from "@/lib/submission-helpers";
 import { ExpenseForm } from "../../new/expense-form";
 import type { ExpenseItemInput } from "@/lib/validators/expense";
-
-const TW_OFFSET_MS = 8 * 60 * 60 * 1000;
-
-function toDateStr(d: Date) {
-  return new Date(d.getTime() + TW_OFFSET_MS).toISOString().slice(0, 10);
-}
 
 export default async function ResubmitExpensePage({
   params,

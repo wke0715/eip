@@ -432,7 +432,6 @@ export function CalendarView({ initialPersonNames }: Props) {
                     hasHoliday && "bg-red-50/40",
                   )}
                 >
-                  <>
                     <div className={cn(
                       "w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-0.5 mx-auto transition-all",
                       todayCell && "bg-primary text-primary-foreground",
@@ -476,7 +475,6 @@ export function CalendarView({ initialPersonNames }: Props) {
                           );
                         })}
                       </div>
-                  </>
                 </button>
               );
             })}

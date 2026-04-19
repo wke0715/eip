@@ -13,8 +13,8 @@ export function ReceiptsCell({
   receipts,
   onUpdate,
 }: {
-  receipts: number;
-  onUpdate: (v: number) => void;
+  readonly receipts: number;
+  readonly onUpdate: (v: number) => void;
 }) {
   return (
     <td className="p-1">
@@ -29,7 +29,7 @@ export function ReceiptsCell({
   );
 }
 
-export function DeleteRowCell({ onRemove }: { onRemove: () => void }) {
+export function DeleteRowCell({ onRemove }: { readonly onRemove: () => void }) {
   return (
     <td className="p-1 text-center">
       <button
@@ -44,7 +44,11 @@ export function DeleteRowCell({ onRemove }: { onRemove: () => void }) {
   );
 }
 
-export function ItemsTableHeader({ onAddRow }: { onAddRow: () => void }) {
+export function ItemsTableHeader({
+  onAddRow,
+}: {
+  readonly onAddRow: () => void;
+}) {
   return (
     <div className="flex items-center justify-between pt-2">
       <h3 className="font-semibold">明細</h3>
@@ -60,23 +64,23 @@ export const SELECT_CLASS =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs";
 
 interface ExpenseFormShellProps {
-  formNumber?: string;
-  year: number;
-  month: number;
-  onYearChange: (v: number) => void;
-  onMonthChange: (v: number) => void;
-  summaryLabel: string;
-  summaryValue: string;
-  existingAttachmentName?: string | null;
-  submissionId?: string | null;
-  maxSizeMb?: number;
-  onSubmit: (formData: FormData) => void;
-  isPending: boolean;
-  hasItems: boolean;
-  submitLabel: string;
-  error: string | null;
-  onErrorClose: () => void;
-  children: React.ReactNode;
+  readonly formNumber?: string;
+  readonly year: number;
+  readonly month: number;
+  readonly onYearChange: (v: number) => void;
+  readonly onMonthChange: (v: number) => void;
+  readonly summaryLabel: string;
+  readonly summaryValue: string;
+  readonly existingAttachmentName?: string | null;
+  readonly submissionId?: string | null;
+  readonly maxSizeMb?: number;
+  readonly onSubmit: (formData: FormData) => void;
+  readonly isPending: boolean;
+  readonly hasItems: boolean;
+  readonly submitLabel: string;
+  readonly error: string | null;
+  readonly onErrorClose: () => void;
+  readonly children: React.ReactNode;
 }
 
 export function ExpenseFormShell({

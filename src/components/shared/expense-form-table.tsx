@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 import type { SubmissionLike } from "@/lib/form-labels";
 
 interface ExpenseFormTableProps {
-  submissions: SubmissionLike[];
-  formSlug: string;
-  emptyText: string;
+  readonly submissions: SubmissionLike[];
+  readonly formSlug: string;
+  readonly emptyText: string;
 }
 
 export function ExpenseFormTable({

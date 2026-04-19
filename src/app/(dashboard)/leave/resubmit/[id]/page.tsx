@@ -3,17 +3,12 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getLeaveTypes, resubmitLeaveRequest } from "@/actions/leave";
 import { getMaxAttachmentSizeMb } from "@/lib/settings";
+import { toDateStr } from "@/lib/submission-helpers";
 import { LeaveForm } from "../../new/leave-form";
 
 const TW_OFFSET_MS = 8 * 60 * 60 * 1000;
 
-function toDateStr(d: Date) {
-  // 轉換為台灣時間後取日期
-  return new Date(d.getTime() + TW_OFFSET_MS).toISOString().slice(0, 10);
-}
-
 function toTimeStr(d: Date) {
-  // 轉換為台灣時間後取時分
   const tw = new Date(d.getTime() + TW_OFFSET_MS);
   const h = String(tw.getUTCHours()).padStart(2, "0");
   const m = tw.getUTCMinutes() === 30 ? "30" : "00";

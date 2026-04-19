@@ -327,7 +327,7 @@ export async function createMeetingRoom(formData: FormData) {
   const name = (formData.get("name") as string)?.trim();
   const location = (formData.get("location") as string)?.trim() || null;
   const capacityRaw = formData.get("capacity") as string;
-  const capacity = capacityRaw ? parseInt(capacityRaw, 10) : null;
+  const capacity = capacityRaw ? Number.parseInt(capacityRaw, 10) : null;
 
   if (!name) throw new Error("請填寫會議室名稱");
 
@@ -356,7 +356,7 @@ export async function updateMeetingRoom(formData: FormData) {
   const name = (formData.get("name") as string)?.trim();
   const location = (formData.get("location") as string)?.trim() || null;
   const capacityRaw = formData.get("capacity") as string;
-  const capacity = capacityRaw ? parseInt(capacityRaw, 10) : null;
+  const capacity = capacityRaw ? Number.parseInt(capacityRaw, 10) : null;
 
   if (!id) throw new Error("缺少會議室 ID");
   if (!name) throw new Error("請填寫會議室名稱");

@@ -278,7 +278,6 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
                     }
                   }}
                 >
-                  <>
                       <div className={cn(
                         "w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-0.5 mx-auto",
                         todayCell && "bg-primary text-primary-foreground",
@@ -315,7 +314,6 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
                           </div>
                         )}
                       </div>
-                  </>
                 </button>
               );
             })}
