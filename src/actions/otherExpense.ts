@@ -7,7 +7,7 @@ import {
   calcOtherExpenseSubtotal,
   type OtherExpenseItemInput,
 } from "@/lib/validators/otherExpense";
-import { generateFormNumber, getTaipeiDateStr } from "@/lib/form-number";
+import { getTaipeiDateStr } from "@/lib/form-number";
 import { cancelSubmission } from "@/actions/approval";
 import { upsertAttachment } from "@/lib/attachment";
 import {
@@ -18,6 +18,7 @@ import {
   createWorkflowApprovalsAndNotify,
   requireServerAuth,
   advanceResubmit,
+  createFormSubmission,
 } from "@/lib/submission-helpers";
 
 function computeTotals(items: OtherExpenseItemInput[]) {
@@ -83,16 +84,12 @@ export async function submitOtherExpenseRequest(formData: FormData) {
 
   const submissionId = await retryOnUniqueViolation(() =>
     prisma.$transaction(async (tx) => {
-      const sub = await tx.formSubmission.create({
-        data: {
-          formType: "OTHER_EXPENSE",
-          applicantId,
-          status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
-          currentStep: 1,
-        },
+      const { sub, formNumber } = await createFormSubmission(tx, {
+        formType: "OTHER_EXPENSE",
+        applicantId,
+        workflowSteps,
+        dateStr,
       });
-
-      const formNumber = await generateFormNumber(tx, "OTHER_EXPENSE", dateStr);
 
       await tx.otherExpenseRequest.create({
         data: {

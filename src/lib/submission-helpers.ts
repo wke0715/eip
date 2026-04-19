@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
+import type { FormType } from "@prisma/client";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { resolveWorkflowApprovers } from "@/lib/workflow";
+import { generateFormNumber } from "@/lib/form-number";
 
 export function parseItemsJson(raw: FormDataEntryValue | null): unknown {
   if (typeof raw !== "string" || raw.trim() === "") return [];
@@ -108,6 +110,27 @@ export async function createWorkflowApprovalsAndNotify(
       message: params.notification.message,
     },
   });
+}
+
+export async function createFormSubmission(
+  tx: Prisma.TransactionClient,
+  params: {
+    formType: FormType;
+    applicantId: string;
+    workflowSteps: { stepOrder: number }[];
+    dateStr: string;
+  },
+) {
+  const sub = await tx.formSubmission.create({
+    data: {
+      formType: params.formType,
+      applicantId: params.applicantId,
+      status: params.workflowSteps.length > 0 ? "PENDING" : "APPROVED",
+      currentStep: 1,
+    },
+  });
+  const formNumber = await generateFormNumber(tx, params.formType, params.dateStr);
+  return { sub, formNumber };
 }
 
 export async function advanceResubmit(

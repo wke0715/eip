@@ -32,6 +32,28 @@ async function addMember(card: Locator, userName: string) {
   await card.locator("select").selectOption({ label: userName });
 }
 
+async function createDeptWithMember(
+  page: Page,
+  deptPrefix: string,
+  userPrefix: string,
+  emailSlug: string,
+) {
+  const ts = Date.now();
+  const deptName = `${deptPrefix}${ts}`;
+  const userEmail = `dept.${emailSlug}.${ts}@example.com`;
+  const userName = `${userPrefix}${ts}`;
+
+  await page.goto("/admin/users");
+  await createUser(page, userEmail, userName);
+  await createDept(page, deptName);
+
+  const card = deptCard(page, deptName);
+  await addMember(card, userName);
+  await expect(card.locator("li").filter({ hasText: userName })).toBeVisible();
+
+  return { deptName, userName, card };
+}
+
 // 部門管理功能尚未實作（無 Prisma schema、無頁面），暫時跳過
 test.describe.skip("部門管理", () => {
   test.beforeEach(async ({ context }) => {
@@ -86,33 +108,11 @@ test.describe.skip("部門管理", () => {
   });
 
   test("可以新增成員到部門", async ({ page }) => {
-    const ts = Date.now();
-    const deptName = `成員測試${ts}`;
-    const userEmail = `dept.member.${ts}@example.com`;
-    const userName = `部門成員${ts}`;
-
-    await page.goto("/admin/users");
-    await createUser(page, userEmail, userName);
-    await createDept(page, deptName);
-
-    const card = deptCard(page, deptName);
-    await addMember(card, userName);
-    await expect(card.locator("li").filter({ hasText: userName })).toBeVisible();
+    await createDeptWithMember(page, "成員測試", "部門成員", "member");
   });
 
   test("可以移出部門成員", async ({ page }) => {
-    const ts = Date.now();
-    const deptName = `移出測試${ts}`;
-    const userEmail = `dept.remove.${ts}@example.com`;
-    const userName = `待移出${ts}`;
-
-    await page.goto("/admin/users");
-    await createUser(page, userEmail, userName);
-    await createDept(page, deptName);
-
-    const card = deptCard(page, deptName);
-    await addMember(card, userName);
-    await expect(card.locator("li").filter({ hasText: userName })).toBeVisible();
+    const { userName, card } = await createDeptWithMember(page, "移出測試", "待移出", "remove");
 
     const memberRow = card.locator("li").filter({ hasText: userName });
     await memberRow.getByTitle("移出部門").click();
@@ -124,18 +124,7 @@ test.describe.skip("部門管理", () => {
   });
 
   test("可以設定部門主管", async ({ page }) => {
-    const ts = Date.now();
-    const deptName = `主管測試${ts}`;
-    const userEmail = `dept.mgr.${ts}@example.com`;
-    const userName = `部門主管${ts}`;
-
-    await page.goto("/admin/users");
-    await createUser(page, userEmail, userName);
-    await createDept(page, deptName);
-
-    const card = deptCard(page, deptName);
-    await addMember(card, userName);
-    await expect(card.locator("li").filter({ hasText: userName })).toBeVisible();
+    const { deptName, userName, card } = await createDeptWithMember(page, "主管測試", "部門主管", "mgr");
 
     await card.getByTitle("編輯").click();
     const editDialog = page.getByRole("dialog");
@@ -156,18 +145,7 @@ test.describe.skip("部門管理", () => {
   });
 
   test("有成員時無法刪除部門", async ({ page }) => {
-    const ts = Date.now();
-    const deptName = `刪除保護${ts}`;
-    const userEmail = `dept.nodelete.${ts}@example.com`;
-    const userName = `保護成員${ts}`;
-
-    await page.goto("/admin/users");
-    await createUser(page, userEmail, userName);
-    await createDept(page, deptName);
-
-    const card = deptCard(page, deptName);
-    await addMember(card, userName);
-    await expect(card.locator("li").filter({ hasText: userName })).toBeVisible();
+    const { card } = await createDeptWithMember(page, "刪除保護", "保護成員", "nodelete");
 
     await expect(card.getByTitle("請先移除所有成員")).toBeDisabled();
   });

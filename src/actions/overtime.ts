@@ -6,7 +6,7 @@ import {
   createOvertimeRequestSchema,
   type OvertimeItemInput,
 } from "@/lib/validators/overtime";
-import { generateFormNumber, getTaipeiDateStr } from "@/lib/form-number";
+import { getTaipeiDateStr } from "@/lib/form-number";
 import { cancelSubmission } from "@/actions/approval";
 import { upsertAttachment } from "@/lib/attachment";
 import {
@@ -17,6 +17,7 @@ import {
   createWorkflowApprovalsAndNotify,
   requireServerAuth,
   advanceResubmit,
+  createFormSubmission,
 } from "@/lib/submission-helpers";
 
 function computeTotals(items: OvertimeItemInput[]) {
@@ -82,16 +83,12 @@ export async function submitOvertimeRequest(formData: FormData) {
 
   const submissionId = await retryOnUniqueViolation(() =>
     prisma.$transaction(async (tx) => {
-      const sub = await tx.formSubmission.create({
-        data: {
-          formType: "OVERTIME",
-          applicantId,
-          status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
-          currentStep: 1,
-        },
+      const { sub, formNumber } = await createFormSubmission(tx, {
+        formType: "OVERTIME",
+        applicantId,
+        workflowSteps,
+        dateStr,
       });
-
-      const formNumber = await generateFormNumber(tx, "OVERTIME", dateStr);
 
       await tx.overtimeRequest.create({
         data: {

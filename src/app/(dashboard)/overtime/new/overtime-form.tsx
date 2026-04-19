@@ -62,14 +62,13 @@ export function OvertimeForm({
   const [year, setYear] = useState<number>(defaultValues.year);
   const [month, setMonth] = useState<number>(defaultValues.month);
 
-  const nextKey = useRef(0);
-  const [rows, setRows] = useState<Array<{ key: number; item: OvertimeItemInput }>>(() => {
-    const initial =
-      defaultValues.items.length > 0
-        ? defaultValues.items
-        : [emptyItem(`${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`)];
-    return initial.map((item) => ({ key: nextKey.current++, item }));
-  });
+  const initialItems = defaultValues.items.length > 0
+    ? defaultValues.items
+    : [emptyItem(`${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`)];
+  const nextKey = useRef(initialItems.length);
+  const [rows, setRows] = useState<Array<{ key: number; item: OvertimeItemInput }>>(() =>
+    initialItems.map((item, i) => ({ key: i, item }))
+  );
 
   const totals = useMemo(() => {
     const workHours = rows.reduce((sum, { item: it }) => sum + (it.workHours ?? 0), 0);

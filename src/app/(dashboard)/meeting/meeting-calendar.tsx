@@ -152,8 +152,6 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
 
   // ── Calendar data ────────────────────────────────────
 
-  const grid = getMonthGrid(year, month);
-
   const byDay = new Map<string, Booking[]>();
   filtered.forEach((b) => {
     const key = bookingDateKey(b.date as string);
