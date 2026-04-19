@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { auth } from "@/lib/auth";
 import { resolveWorkflowApprovers } from "@/lib/workflow";
 
 export function parseItemsJson(raw: FormDataEntryValue | null): unknown {
@@ -51,6 +52,15 @@ export async function retryOnUniqueViolation<T>(
   throw new Error("unreachable");
 }
 
+export async function requireServerAuth() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("未登入");
+  return {
+    applicantId: session.user.id,
+    displayName: (session.user.name ?? session.user.email) as string,
+  };
+}
+
 type WorkflowStep = { stepOrder: number; approverRole: string };
 
 export async function createWorkflowApprovalsAndNotify(
@@ -97,5 +107,37 @@ export async function createWorkflowApprovalsAndNotify(
       title: params.notification.title,
       message: params.notification.message,
     },
+  });
+}
+
+export async function advanceResubmit(
+  tx: Prisma.TransactionClient,
+  params: {
+    submissionId: string;
+    applicantId: string;
+    workflowSteps: WorkflowStep[];
+    notification: { title: string; message: string };
+  },
+): Promise<void> {
+  const maxRound = await tx.approvalAction.aggregate({
+    where: { submissionId: params.submissionId },
+    _max: { round: true },
+  });
+  const newRound = (maxRound._max.round ?? 0) + 1;
+
+  await tx.formSubmission.update({
+    where: { id: params.submissionId },
+    data: {
+      status: params.workflowSteps.length > 0 ? "PENDING" : "APPROVED",
+      currentStep: 1,
+    },
+  });
+
+  await createWorkflowApprovalsAndNotify(tx, {
+    submissionId: params.submissionId,
+    applicantId: params.applicantId,
+    workflowSteps: params.workflowSteps,
+    round: newRound,
+    notification: params.notification,
   });
 }

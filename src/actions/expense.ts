@@ -1,6 +1,5 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import {
@@ -17,6 +16,8 @@ import {
   toDateOnly,
   retryOnUniqueViolation,
   createWorkflowApprovalsAndNotify,
+  requireServerAuth,
+  advanceResubmit,
 } from "@/lib/submission-helpers";
 
 function computeTotals(items: ExpenseItemInput[]) {
@@ -77,10 +78,7 @@ async function assertNoActiveReportInMonth(
 }
 
 export async function submitExpenseReport(formData: FormData) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("未登入");
-  const applicantId = session.user.id;
-  const displayName = session.user.name ?? session.user.email;
+  const { applicantId, displayName } = await requireServerAuth();
 
   const parsed = safeZodParse(createExpenseReportSchema, parseYearMonthItems(formData));
   await assertNoActiveReportInMonth(applicantId, parsed.year, parsed.month);
@@ -142,10 +140,7 @@ export async function submitExpenseReport(formData: FormData) {
 }
 
 export async function resubmitExpenseReport(submissionId: string, formData: FormData) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("未登入");
-  const applicantId = session.user.id;
-  const displayName = session.user.name ?? session.user.email;
+  const { applicantId, displayName } = await requireServerAuth();
 
   const submission = await prisma.formSubmission.findUniqueOrThrow({
     where: { id: submissionId },
@@ -182,25 +177,10 @@ export async function resubmitExpenseReport(submissionId: string, formData: Form
       },
     });
 
-    const maxRound = await tx.approvalAction.aggregate({
-      where: { submissionId },
-      _max: { round: true },
-    });
-    const newRound = (maxRound._max.round ?? 0) + 1;
-
-    await tx.formSubmission.update({
-      where: { id: submissionId },
-      data: {
-        status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
-        currentStep: 1,
-      },
-    });
-
-    await createWorkflowApprovalsAndNotify(tx, {
+    await advanceResubmit(tx, {
       submissionId,
       applicantId,
       workflowSteps,
-      round: newRound,
       notification: {
         title: "出差旅費報告單已修改重送",
         message: `${displayName} 修改了出差旅費報告單並重新送出，請前往簽核`,
@@ -221,14 +201,13 @@ export async function cancelExpenseReport(submissionId: string) {
 }
 
 export async function deleteExpenseReport(submissionId: string) {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("未登入");
+  const { applicantId: userId } = await requireServerAuth();
 
   const submission = await prisma.formSubmission.findUniqueOrThrow({
     where: { id: submissionId },
     include: { expenseReport: true },
   });
-  if (submission.applicantId !== session.user.id) throw new Error("只能刪除自己的申請");
+  if (submission.applicantId !== userId) throw new Error("只能刪除自己的申請");
   if (submission.status !== "REJECTED") throw new Error("只有已退回/取消的表單可以刪除");
   if (!submission.expenseReport) throw new Error("找不到對應的報告單");
 
@@ -242,12 +221,11 @@ export async function deleteExpenseReport(submissionId: string) {
 }
 
 export async function getMyExpenseReports() {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("未登入");
+  const { applicantId } = await requireServerAuth();
 
   return prisma.formSubmission.findMany({
     where: {
-      applicantId: session.user.id,
+      applicantId,
       formType: "EXPENSE",
       expenseReport: { deletedAt: null },
     },

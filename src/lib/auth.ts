@@ -29,13 +29,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           select: { id: true },
         });
         if (adminUser) {
-          await prisma.systemLog.create({
-            data: {
-              userId: adminUser.id,
-              action: "USER_LOGIN",
-              detail: user.email,
-            },
-          }).catch(() => {});
+          await prisma.systemLog
+            .create({
+              data: {
+                userId: adminUser.id,
+                action: "USER_LOGIN",
+                detail: user.email,
+              },
+            })
+            .catch(() => {});
         }
         return true;
       }
@@ -44,15 +46,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const allowedUser = await prisma.user.findUnique({
         where: { email: user.email },
       });
-      if (!allowedUser || !allowedUser.isActive) return false;
+      if (!allowedUser?.isActive) return false;
 
-      await prisma.systemLog.create({
-        data: {
-          userId: allowedUser.id,
-          action: "USER_LOGIN",
-          detail: user.email,
-        },
-      }).catch(() => {});
+      await prisma.systemLog
+        .create({
+          data: {
+            userId: allowedUser.id,
+            action: "USER_LOGIN",
+            detail: user.email,
+          },
+        })
+        .catch(() => {});
 
       return true;
     },

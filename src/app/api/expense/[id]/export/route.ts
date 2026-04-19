@@ -31,7 +31,7 @@ export async function GET(
     },
   });
 
-  if (!submission || !submission.expenseReport) {
+  if (!submission?.expenseReport) {
     return NextResponse.json({ error: "找不到此報告單" }, { status: 404 });
   }
 

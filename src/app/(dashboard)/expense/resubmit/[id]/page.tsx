@@ -37,7 +37,7 @@ export default async function ResubmitExpensePage({
     submission.applicantId !== session.user.id ||
     submission.status !== "REJECTED" ||
     !submission.expenseReport ||
-    submission.expenseReport.deletedAt !== null
+    submission.expenseReport?.deletedAt !== null
   ) {
     notFound();
   }

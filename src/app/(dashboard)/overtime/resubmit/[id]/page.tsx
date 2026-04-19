@@ -37,7 +37,7 @@ export default async function ResubmitOvertimePage({
     submission.applicantId !== session.user.id ||
     submission.status !== "REJECTED" ||
     !submission.overtimeRequest ||
-    submission.overtimeRequest.deletedAt !== null
+    submission.overtimeRequest?.deletedAt !== null
   ) {
     notFound();
   }
