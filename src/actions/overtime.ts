@@ -2,30 +2,21 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import {
   createOvertimeRequestSchema,
   type OvertimeItemInput,
 } from "@/lib/validators/overtime";
 import { generateFormNumber, getTaipeiDateStr } from "@/lib/form-number";
-import { resolveWorkflowApprovers } from "@/lib/workflow";
 import { cancelSubmission } from "@/actions/approval";
 import { upsertAttachment } from "@/lib/attachment";
-
-function parseItemsJson(raw: FormDataEntryValue | null): unknown {
-  if (typeof raw !== "string" || raw.trim() === "") return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error("明細資料格式錯誤");
-  }
-}
-
-function toDateOnly(dateStr: string): Date {
-  return new Date(`${dateStr}T00:00:00+08:00`);
-}
+import {
+  parseYearMonthItems,
+  safeZodParse,
+  toDateOnly,
+  retryOnUniqueViolation,
+  createWorkflowApprovalsAndNotify,
+} from "@/lib/submission-helpers";
 
 function computeTotals(items: OvertimeItemInput[]) {
   const totalWorkHours = items.reduce((sum, it) => sum + (it.workHours ?? 0), 0);
@@ -33,6 +24,20 @@ function computeTotals(items: OvertimeItemInput[]) {
   const totalHolidayPay = items.reduce((sum, it) => sum + (it.holidayDoublePay ?? 0), 0);
   const totalOvertimePay = items.reduce((sum, it) => sum + (it.overtimePay ?? 0), 0);
   return { totalWorkHours, totalOvertimeHours, totalHolidayPay, totalOvertimePay };
+}
+
+function itemsCreateInput(items: OvertimeItemInput[]) {
+  return items.map((it) => ({
+    date: toDateOnly(it.date),
+    workerName: it.workerName,
+    clientOrWork: it.clientOrWork,
+    dayType: it.dayType,
+    workTime: it.workTime,
+    workHours: it.workHours,
+    overtimeHours: it.overtimeHours,
+    holidayDoublePay: it.holidayDoublePay ?? 0,
+    overtimePay: it.overtimePay ?? 0,
+  }));
 }
 
 async function assertNoActiveRequestInMonth(
@@ -63,26 +68,12 @@ export async function submitOvertimeRequest(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
   const applicantId = session.user.id;
+  const displayName = session.user.name ?? session.user.email;
 
-  const raw = {
-    year: Number(formData.get("year")),
-    month: Number(formData.get("month")),
-    items: parseItemsJson(formData.get("items")),
-  };
-  let parsed: ReturnType<typeof createOvertimeRequestSchema.parse>;
-  try {
-    parsed = createOvertimeRequestSchema.parse(raw);
-  } catch (e) {
-    if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
-    }
-    throw e;
-  }
-
+  const parsed = safeZodParse(createOvertimeRequestSchema, parseYearMonthItems(formData));
   await assertNoActiveRequestInMonth(applicantId, parsed.year, parsed.month);
 
-  const { totalWorkHours, totalOvertimeHours, totalHolidayPay, totalOvertimePay } =
-    computeTotals(parsed.items);
+  const totals = computeTotals(parsed.items);
 
   const workflowSteps = await prisma.workflowConfig.findMany({
     where: { formType: "OVERTIME" },
@@ -90,88 +81,46 @@ export async function submitOvertimeRequest(formData: FormData) {
   });
 
   const dateStr = getTaipeiDateStr();
-  let submissionId!: string;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      submissionId = await prisma.$transaction(async (tx) => {
-        const sub = await tx.formSubmission.create({
-          data: {
-            formType: "OVERTIME",
-            applicantId,
-            status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
-            currentStep: 1,
-          },
-        });
-
-        const formNumber = await generateFormNumber(tx, "OVERTIME", dateStr);
-
-        await tx.overtimeRequest.create({
-          data: {
-            submissionId: sub.id,
-            formNumber,
-            applicantId,
-            year: parsed.year,
-            month: parsed.month,
-            totalWorkHours,
-            totalOvertimeHours,
-            totalHolidayPay,
-            totalOvertimePay,
-            items: {
-              create: parsed.items.map((it) => ({
-                date: toDateOnly(it.date),
-                workerName: it.workerName,
-                clientOrWork: it.clientOrWork,
-                dayType: it.dayType,
-                workTime: it.workTime,
-                workHours: it.workHours,
-                overtimeHours: it.overtimeHours,
-                holidayDoublePay: it.holidayDoublePay ?? 0,
-                overtimePay: it.overtimePay ?? 0,
-              })),
-            },
-          },
-        });
-
-        const approvers = await resolveWorkflowApprovers(
-          tx,
+  const submissionId = await retryOnUniqueViolation(() =>
+    prisma.$transaction(async (tx) => {
+      const sub = await tx.formSubmission.create({
+        data: {
+          formType: "OVERTIME",
           applicantId,
-          workflowSteps,
-        );
-        for (const a of approvers) {
-          await tx.approvalAction.create({
-            data: { submissionId: sub.id, stepOrder: a.stepOrder, approverId: a.approverId },
-          });
-        }
-
-        if (workflowSteps.length > 0) {
-          const firstAction = await tx.approvalAction.findFirst({
-            where: { submissionId: sub.id, stepOrder: 1 },
-          });
-          if (firstAction) {
-            await tx.notification.create({
-              data: {
-                userId: firstAction.approverId,
-                submissionId: sub.id,
-                title: "新的待簽核表單",
-                message: `${session.user.name ?? session.user.email} 提交了加班單，請前往簽核`,
-              },
-            });
-          }
-        }
-
-        await upsertAttachment(tx, sub.id, formData);
-
-        return sub.id;
+          status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
+          currentStep: 1,
+        },
       });
-      break;
-    } catch (e) {
-      const isUniqueViolation =
-        e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (isUniqueViolation && attempt < 4) continue;
-      throw e;
-    }
-  }
+
+      const formNumber = await generateFormNumber(tx, "OVERTIME", dateStr);
+
+      await tx.overtimeRequest.create({
+        data: {
+          submissionId: sub.id,
+          formNumber,
+          applicantId,
+          year: parsed.year,
+          month: parsed.month,
+          ...totals,
+          items: { create: itemsCreateInput(parsed.items) },
+        },
+      });
+
+      await createWorkflowApprovalsAndNotify(tx, {
+        submissionId: sub.id,
+        applicantId,
+        workflowSteps,
+        notification: {
+          title: "新的待簽核表單",
+          message: `${displayName} 提交了加班單，請前往簽核`,
+        },
+      });
+
+      await upsertAttachment(tx, sub.id, formData);
+      return sub.id;
+    }),
+  );
 
   revalidatePath("/");
   revalidatePath("/overtime");
@@ -183,6 +132,7 @@ export async function resubmitOvertimeRequest(submissionId: string, formData: Fo
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
   const applicantId = session.user.id;
+  const displayName = session.user.name ?? session.user.email;
 
   const submission = await prisma.formSubmission.findUniqueOrThrow({
     where: { id: submissionId },
@@ -193,25 +143,10 @@ export async function resubmitOvertimeRequest(submissionId: string, formData: Fo
   if (submission.status !== "REJECTED") throw new Error("只有被退件的表單可以重送");
   if (!submission.overtimeRequest) throw new Error("找不到對應的加班單");
 
-  const raw = {
-    year: Number(formData.get("year")),
-    month: Number(formData.get("month")),
-    items: parseItemsJson(formData.get("items")),
-  };
-  let parsed: ReturnType<typeof createOvertimeRequestSchema.parse>;
-  try {
-    parsed = createOvertimeRequestSchema.parse(raw);
-  } catch (e) {
-    if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
-    }
-    throw e;
-  }
-
+  const parsed = safeZodParse(createOvertimeRequestSchema, parseYearMonthItems(formData));
   await assertNoActiveRequestInMonth(applicantId, parsed.year, parsed.month, submissionId);
 
-  const { totalWorkHours, totalOvertimeHours, totalHolidayPay, totalOvertimePay } =
-    computeTotals(parsed.items);
+  const totals = computeTotals(parsed.items);
 
   const workflowSteps = await prisma.workflowConfig.findMany({
     where: { formType: "OVERTIME" },
@@ -228,23 +163,8 @@ export async function resubmitOvertimeRequest(submissionId: string, formData: Fo
       data: {
         year: parsed.year,
         month: parsed.month,
-        totalWorkHours,
-        totalOvertimeHours,
-        totalHolidayPay,
-        totalOvertimePay,
-        items: {
-          create: parsed.items.map((it) => ({
-            date: toDateOnly(it.date),
-            workerName: it.workerName,
-            clientOrWork: it.clientOrWork,
-            dayType: it.dayType,
-            workTime: it.workTime,
-            workHours: it.workHours,
-            overtimeHours: it.overtimeHours,
-            holidayDoublePay: it.holidayDoublePay ?? 0,
-            overtimePay: it.overtimePay ?? 0,
-          })),
-        },
+        ...totals,
+        items: { create: itemsCreateInput(parsed.items) },
       },
     });
 
@@ -262,32 +182,16 @@ export async function resubmitOvertimeRequest(submissionId: string, formData: Fo
       },
     });
 
-    const approvers = await resolveWorkflowApprovers(
-      tx,
+    await createWorkflowApprovalsAndNotify(tx, {
+      submissionId,
       applicantId,
       workflowSteps,
-    );
-    for (const a of approvers) {
-      await tx.approvalAction.create({
-        data: { submissionId, round: newRound, stepOrder: a.stepOrder, approverId: a.approverId },
-      });
-    }
-
-    if (workflowSteps.length > 0) {
-      const firstAction = await tx.approvalAction.findFirst({
-        where: { submissionId, round: newRound, stepOrder: 1 },
-      });
-      if (firstAction) {
-        await tx.notification.create({
-          data: {
-            userId: firstAction.approverId,
-            submissionId,
-            title: "加班單已修改重送",
-            message: `${session.user.name ?? session.user.email} 修改了加班單並重新送出，請前往簽核`,
-          },
-        });
-      }
-    }
+      round: newRound,
+      notification: {
+        title: "加班單已修改重送",
+        message: `${displayName} 修改了加班單並重新送出，請前往簽核`,
+      },
+    });
 
     await upsertAttachment(tx, submissionId, formData);
   });

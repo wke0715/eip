@@ -106,11 +106,19 @@ export function InboxTabs({
                     {notifications.map((n) => (
                       <div
                         key={n.id}
+                        role="button"
+                        tabIndex={0}
                         className={cn(
                           "flex items-start justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors",
                           !n.isRead && "bg-muted/50"
                         )}
                         onClick={() => openNotification(n)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openNotification(n);
+                          }
+                        }}
                       >
                         <div>
                           <p className="text-sm font-medium">{n.title}</p>
@@ -122,7 +130,10 @@ export function InboxTabs({
                           </p>
                         </div>
                         {!n.isRead && (
-                          <div onClick={(e) => e.stopPropagation()}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
                             <MarkReadButton notificationId={n.id} />
                           </div>
                         )}

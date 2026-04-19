@@ -258,11 +258,19 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
               return (
                 <div
                   key={day ? dayKey! : `empty-${i}`}
+                  role={day ? "button" : undefined}
+                  tabIndex={day ? 0 : -1}
                   className={cn(
                     "min-h-[120px] border-b border-r last:border-r-0 p-1 transition-colors",
                     day ? "cursor-pointer hover:bg-muted/20" : "bg-muted/10",
                   )}
                   onClick={() => day && dayKey && openNewBooking(dayKey)}
+                  onKeyDown={(e) => {
+                    if (day && dayKey && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      openNewBooking(dayKey);
+                    }
+                  }}
                 >
                   {day && (
                     <>
@@ -279,11 +287,12 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
                         {dayEvents.slice(0, MAX_VISIBLE).map((b) => {
                           const color = getRoomColor(b.roomId, roomIds);
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={b.id}
                               title={`[${b.room.name}] ${b.subject}\n${b.startTime}~${b.endTime}\n${b.booker.name ?? b.booker.email}`}
                               className={cn(
-                                "flex items-center gap-0.5 text-xs px-1 py-0.5 rounded border leading-tight cursor-pointer hover:opacity-80",
+                                "w-full flex items-center gap-0.5 text-xs px-1 py-0.5 rounded border leading-tight cursor-pointer hover:opacity-80",
                                 color.bg, color.text, color.border
                               )}
                               onClick={(e) => { e.stopPropagation(); openViewBooking(b); }}
@@ -292,7 +301,7 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
                               <span className="truncate">
                                 {b.room.name} {b.startTime}~{b.endTime} {b.booker.name ?? b.booker.email}
                               </span>
-                            </div>
+                            </button>
                           );
                         })}
                         {dayEvents.length > MAX_VISIBLE && (
@@ -344,9 +353,10 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
               {dayBookings.map((b) => {
                 const color = getRoomColor(b.roomId, roomIds);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={b.id}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 cursor-pointer"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/20 cursor-pointer text-left"
                     onClick={() => openViewBooking(b)}
                   >
                     <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", color.dot)} />
@@ -358,7 +368,7 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
                         {b.startTime}~{b.endTime} · {b.booker.name ?? b.booker.email}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

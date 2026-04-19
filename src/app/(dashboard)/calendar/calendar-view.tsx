@@ -246,6 +246,33 @@ export function CalendarView({ initialPersonNames }: Props) {
 
   const displayPersons = selectedPerson ? [selectedPerson] : personNames;
 
+  // ── Click handlers（抽出以避免巢狀過深 + 支援鍵盤觸發）────────────────────
+  function openNewForDay(dayKey: string) {
+    setEditTarget({
+      date: dayKey,
+      personName: selectedPerson,
+      amTask: null,
+      pmTask: null,
+      fullDayTask: null,
+      status: "CONFIRMED",
+      weekNumber: null,
+    });
+  }
+
+  function openEditForEvent(eventId: string, dayKey: string) {
+    const ev = events.find(e => e.id === eventId);
+    if (!ev) return;
+    setEditTarget({
+      date: dayKey,
+      personName: ev.personName,
+      amTask: ev.amTask,
+      pmTask: ev.pmTask,
+      fullDayTask: ev.fullDayTask,
+      status: ev.status,
+      weekNumber: ev.weekNumber,
+    });
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -378,17 +405,13 @@ export function CalendarView({ initialPersonNames }: Props) {
               return (
                 <div
                   key={dayKey ?? `empty-${i}`}
-                  onClick={() => {
-                    if (day && dayKey) {
-                      setEditTarget({
-                        date: dayKey,
-                        personName: selectedPerson, // 全員時為 "" → 新增模式
-                        amTask: null,
-                        pmTask: null,
-                        fullDayTask: null,
-                        status: "CONFIRMED",
-                        weekNumber: null,
-                      });
+                  role={day ? "button" : undefined}
+                  tabIndex={day ? 0 : -1}
+                  onClick={() => { if (dayKey) openNewForDay(dayKey); }}
+                  onKeyDown={(e) => {
+                    if (dayKey && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      openNewForDay(dayKey);
                     }
                   }}
                   className={cn(
@@ -424,32 +447,22 @@ export function CalendarView({ initialPersonNames }: Props) {
                             );
                           }
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={chip.id}
                               title={`${chip.label}（點擊編輯）`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const ev = dayEvents.find(e => e.id === chip.id);
-                                if (ev && dayKey) {
-                                  setEditTarget({
-                                    date: dayKey,
-                                    personName: ev.personName,
-                                    amTask: ev.amTask,
-                                    pmTask: ev.pmTask,
-                                    fullDayTask: ev.fullDayTask,
-                                    status: ev.status,
-                                    weekNumber: ev.weekNumber,
-                                  });
-                                }
+                                if (dayKey) openEditForEvent(chip.id, dayKey);
                               }}
                               className={cn(
-                                "flex items-center gap-0.5 text-xs px-1 py-0.5 rounded border leading-tight cursor-pointer hover:opacity-80",
+                                "w-full flex items-center gap-0.5 text-xs px-1 py-0.5 rounded border leading-tight cursor-pointer hover:opacity-80",
                                 STATUS_CHIP[chip.status]
                               )}
                             >
                               <span className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0", personDot(chip.name, personNames))} />
                               <span className="truncate">{chip.label}</span>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>

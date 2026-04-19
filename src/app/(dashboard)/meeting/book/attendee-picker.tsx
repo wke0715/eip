@@ -24,7 +24,7 @@ export function AttendeePicker({ users }: Props) {
   function addEmail(email: string) {
     const trimmed = email.trim().toLowerCase();
     if (!trimmed) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return;
+    if (!/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(trimmed)) return;
     if (attendees.includes(trimmed)) return;
     setAttendees((prev) => [...prev, trimmed]);
     setInputValue("");
@@ -64,7 +64,9 @@ export function AttendeePicker({ users }: Props) {
           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs text-muted-foreground"
           defaultValue=""
         >
-          <option value="" disabled>選擇系統使用者...</option>
+          <option value="" disabled>
+            選擇系統使用者...
+          </option>
           {availableUsers.map((u) => (
             <option key={u.id} value={u.email}>
               {u.name ? `${u.name}（${u.email}）` : u.email}

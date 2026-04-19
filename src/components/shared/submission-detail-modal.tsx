@@ -43,28 +43,104 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-function PrintContent({ data }: { data: SubmissionDetail }) {
-  const lr = data.leaveRequest;
-  const er = data.expenseReport;
-  const oe = data.otherExpenseRequest;
-  const ot = data.overtimeRequest;
-  const isExpense = data.formType === "EXPENSE";
-  const isOtherExpense = data.formType === "OTHER_EXPENSE";
-  const isOvertime = data.formType === "OVERTIME";
-  const pageTitle = isExpense
-    ? "出差旅費報告單詳情"
-    : isOtherExpense
-      ? "其他費用申請單詳情"
-      : isOvertime
-        ? "加班單詳情"
-        : "請假單詳情";
-  const statusMap: Record<string, string> = {
-    DRAFT: "草稿",
-    PENDING: "簽核中",
-    APPROVED: "已結案",
-    REJECTED: "被退簽",
-  };
+const PRINT_STATUS_MAP: Record<string, string> = {
+  DRAFT: "草稿",
+  PENDING: "簽核中",
+  APPROVED: "已結案",
+  REJECTED: "被退簽",
+};
 
+const PRINT_TITLE_MAP: Record<string, string> = {
+  EXPENSE: "出差旅費報告單詳情",
+  OTHER_EXPENSE: "其他費用申請單詳情",
+  OVERTIME: "加班單詳情",
+};
+
+function formatDateTime(d: string | Date): string {
+  return new Date(d).toLocaleString("zh-TW", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
+
+function getStepClass(action: string | null): string {
+  if (!action) return "step-pending";
+  if (action === "APPROVED") return "step-approved";
+  return "step-rejected";
+}
+
+function getStepText(action: string | null): string {
+  if (action === "APPROVED") return "✓ 已核准";
+  if (action === "REJECTED") return "✗ 已退簽";
+  return "⏳ 等待中";
+}
+
+function buildPrintRows(data: SubmissionDetail): string {
+  const rows: string[] = [
+    `<tr><td>申請人</td><td>${data.applicant.name ?? data.applicant.email}</td></tr>`,
+  ];
+  const er = data.expenseReport;
+  if (er) {
+    rows.push(
+      `<tr><td>表單編號</td><td>${er.formNumber}</td></tr>`,
+      `<tr><td>年月</td><td>${er.year} 年 ${er.month} 月</td></tr>`,
+      `<tr><td>總金額</td><td>$${er.totalAmount.toLocaleString("zh-TW")}</td></tr>`,
+      `<tr><td>總單據數</td><td>${er.totalReceipts}</td></tr>`,
+    );
+  }
+  const oe = data.otherExpenseRequest;
+  if (oe) {
+    rows.push(
+      `<tr><td>表單編號</td><td>${oe.formNumber}</td></tr>`,
+      `<tr><td>年月</td><td>${oe.year} 年 ${oe.month} 月</td></tr>`,
+      `<tr><td>總金額</td><td>$${oe.totalAmount.toLocaleString("zh-TW")}</td></tr>`,
+      `<tr><td>總單據數</td><td>${oe.totalReceipts}</td></tr>`,
+    );
+  }
+  const ot = data.overtimeRequest;
+  if (ot) {
+    rows.push(
+      `<tr><td>表單編號</td><td>${ot.formNumber}</td></tr>`,
+      `<tr><td>年月</td><td>${ot.year} 年 ${ot.month} 月</td></tr>`,
+      `<tr><td>總加班時數</td><td>${ot.totalOvertimeHours.toFixed(1)}h</td></tr>`,
+      `<tr><td>加班費合計</td><td>$${ot.totalOvertimePay.toLocaleString("zh-TW")}</td></tr>`,
+    );
+  }
+  const lr = data.leaveRequest;
+  if (lr) {
+    rows.push(
+      `<tr><td>表單編號</td><td>${lr.formNumber}</td></tr>`,
+      `<tr><td>假別</td><td>${lr.leaveType.name}</td></tr>`,
+      `<tr><td>起始時間</td><td>${formatDateTime(lr.startDate)}</td></tr>`,
+      `<tr><td>結束時間</td><td>${formatDateTime(lr.endDate)}</td></tr>`,
+      `<tr><td>時數</td><td>${lr.hours} 小時</td></tr>`,
+      `<tr><td>原因</td><td>${lr.reason}</td></tr>`,
+    );
+  }
+  if (data.attachment) {
+    rows.push(`<tr><td>附件</td><td>${data.attachment.fileName}</td></tr>`);
+  }
+  rows.push(
+    `<tr><td>狀態</td><td>${PRINT_STATUS_MAP[data.status] ?? data.status}</td></tr>`,
+    `<tr><td>申請日期</td><td>${new Date(data.createdAt).toLocaleDateString("zh-TW")}</td></tr>`,
+  );
+  return rows.join("");
+}
+
+function buildApprovalSteps(actions: SubmissionDetail["approvalActions"]): string {
+  if (actions.length === 0) return "<p style='color:#999'>無簽核流程</p>";
+  return actions.map((a) => `
+    <div class="step ${getStepClass(a.action)}">
+      第 ${a.stepOrder} 關：${a.approver.name ?? a.approver.email}
+      ${getStepText(a.action)}
+      ${a.actedAt ? `（${new Date(a.actedAt).toLocaleString("zh-TW")}）` : ""}
+      ${a.comment ? `<br><span style='color:#555;padding-left:16px'>備註：${a.comment}</span>` : ""}
+    </div>
+  `).join("");
+}
+
+function PrintContent({ data }: { data: SubmissionDetail }) {
+  const pageTitle = PRINT_TITLE_MAP[data.formType] ?? "請假單詳情";
   return `
     <style>
       body { font-family: sans-serif; font-size: 14px; padding: 32px; color: #111; }
@@ -81,42 +157,9 @@ function PrintContent({ data }: { data: SubmissionDetail }) {
       .step-rejected { color: #dc2626; }
     </style>
     <h1>${pageTitle}</h1>
-    <table>
-      <tr><td>申請人</td><td>${data.applicant.name ?? data.applicant.email}</td></tr>
-      ${er ? `<tr><td>表單編號</td><td>${er.formNumber}</td></tr>` : ""}
-      ${er ? `<tr><td>年月</td><td>${er.year} 年 ${er.month} 月</td></tr>` : ""}
-      ${er ? `<tr><td>總金額</td><td>$${er.totalAmount.toLocaleString("zh-TW")}</td></tr>` : ""}
-      ${er ? `<tr><td>總單據數</td><td>${er.totalReceipts}</td></tr>` : ""}
-      ${oe ? `<tr><td>表單編號</td><td>${oe.formNumber}</td></tr>` : ""}
-      ${oe ? `<tr><td>年月</td><td>${oe.year} 年 ${oe.month} 月</td></tr>` : ""}
-      ${oe ? `<tr><td>總金額</td><td>$${oe.totalAmount.toLocaleString("zh-TW")}</td></tr>` : ""}
-      ${oe ? `<tr><td>總單據數</td><td>${oe.totalReceipts}</td></tr>` : ""}
-      ${ot ? `<tr><td>表單編號</td><td>${ot.formNumber}</td></tr>` : ""}
-      ${ot ? `<tr><td>年月</td><td>${ot.year} 年 ${ot.month} 月</td></tr>` : ""}
-      ${ot ? `<tr><td>總加班時數</td><td>${ot.totalOvertimeHours.toFixed(1)}h</td></tr>` : ""}
-      ${ot ? `<tr><td>加班費合計</td><td>$${ot.totalOvertimePay.toLocaleString("zh-TW")}</td></tr>` : ""}
-      ${lr ? `<tr><td>表單編號</td><td>${lr.formNumber}</td></tr>` : ""}
-      ${lr ? `<tr><td>假別</td><td>${lr.leaveType.name}</td></tr>` : ""}
-      ${lr ? `<tr><td>起始時間</td><td>${new Date(lr.startDate).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</td></tr>` : ""}
-      ${lr ? `<tr><td>結束時間</td><td>${new Date(lr.endDate).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</td></tr>` : ""}
-      ${lr ? `<tr><td>時數</td><td>${lr.hours} 小時</td></tr>` : ""}
-      ${lr ? `<tr><td>原因</td><td>${lr.reason}</td></tr>` : ""}
-      ${data.attachment ? `<tr><td>附件</td><td>${data.attachment.fileName}</td></tr>` : ""}
-      <tr><td>狀態</td><td>${statusMap[data.status] ?? data.status}</td></tr>
-      <tr><td>申請日期</td><td>${new Date(data.createdAt).toLocaleDateString("zh-TW")}</td></tr>
-    </table>
+    <table>${buildPrintRows(data)}</table>
     <h2>簽核流程</h2>
-    ${data.approvalActions.length === 0
-      ? "<p style='color:#999'>無簽核流程</p>"
-      : data.approvalActions.map((a) => `
-        <div class="step ${!a.action ? "step-pending" : a.action === "APPROVED" ? "step-approved" : "step-rejected"}">
-          第 ${a.stepOrder} 關：${a.approver.name ?? a.approver.email}
-          ${a.action === "APPROVED" ? "✓ 已核准" : a.action === "REJECTED" ? "✗ 已退簽" : "⏳ 等待中"}
-          ${a.actedAt ? `（${new Date(a.actedAt).toLocaleString("zh-TW")}）` : ""}
-          ${a.comment ? `<br><span style='color:#555;padding-left:16px'>備註：${a.comment}</span>` : ""}
-        </div>
-      `).join("")
-    }
+    ${buildApprovalSteps(data.approvalActions)}
     <p style='color:#999;font-size:12px;margin-top:40px'>列印時間：${new Date().toLocaleString("zh-TW")}</p>
   `;
 }
@@ -499,7 +542,11 @@ export function SubmissionDetailModal({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {showApprovalButtons && data?.status === "PENDING" && (
-            <div className="flex gap-2 sm:mr-auto" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="flex gap-2 sm:mr-auto"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
               <ApprovalButtons
                 submissionId={data.id}
                 onSuccess={() => onOpenChange(false)}

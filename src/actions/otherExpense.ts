@@ -2,9 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import {
   createOtherExpenseRequestSchema,
   calcOtherExpenseSubtotal,
@@ -12,21 +10,14 @@ import {
 } from "@/lib/validators/otherExpense";
 import { generateFormNumber, getTaipeiDateStr } from "@/lib/form-number";
 import { cancelSubmission } from "@/actions/approval";
-import { resolveWorkflowApprovers } from "@/lib/workflow";
 import { upsertAttachment } from "@/lib/attachment";
-
-function parseItemsJson(raw: FormDataEntryValue | null): unknown {
-  if (typeof raw !== "string" || raw.trim() === "") return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error("明細資料格式錯誤");
-  }
-}
-
-function toDateOnly(dateStr: string): Date {
-  return new Date(`${dateStr}T00:00:00+08:00`);
-}
+import {
+  parseYearMonthItems,
+  safeZodParse,
+  toDateOnly,
+  retryOnUniqueViolation,
+  createWorkflowApprovalsAndNotify,
+} from "@/lib/submission-helpers";
 
 function computeTotals(items: OtherExpenseItemInput[]) {
   const normalized = items.map((it) => ({
@@ -36,6 +27,18 @@ function computeTotals(items: OtherExpenseItemInput[]) {
   const totalAmount = normalized.reduce((sum, it) => sum + (it.subtotal ?? 0), 0);
   const totalReceipts = normalized.reduce((sum, it) => sum + (it.receipts ?? 0), 0);
   return { normalized, totalAmount, totalReceipts };
+}
+
+function itemsCreateInput(items: OtherExpenseItemInput[]) {
+  return items.map((it) => ({
+    date: toDateOnly(it.date),
+    itemName: it.itemName,
+    purpose: it.purpose,
+    quantity: it.quantity,
+    unitPrice: it.unitPrice,
+    subtotal: it.subtotal,
+    receipts: it.receipts,
+  }));
 }
 
 async function assertNoActiveRequestInMonth(
@@ -66,22 +69,9 @@ export async function submitOtherExpenseRequest(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
   const applicantId = session.user.id;
+  const displayName = session.user.name ?? session.user.email;
 
-  const raw = {
-    year: Number(formData.get("year")),
-    month: Number(formData.get("month")),
-    items: parseItemsJson(formData.get("items")),
-  };
-  let parsed: ReturnType<typeof createOtherExpenseRequestSchema.parse>;
-  try {
-    parsed = createOtherExpenseRequestSchema.parse(raw);
-  } catch (e) {
-    if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
-    }
-    throw e;
-  }
-
+  const parsed = safeZodParse(createOtherExpenseRequestSchema, parseYearMonthItems(formData));
   await assertNoActiveRequestInMonth(applicantId, parsed.year, parsed.month);
 
   const { normalized, totalAmount, totalReceipts } = computeTotals(parsed.items);
@@ -92,84 +82,47 @@ export async function submitOtherExpenseRequest(formData: FormData) {
   });
 
   const dateStr = getTaipeiDateStr();
-  let submissionId!: string;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      submissionId = await prisma.$transaction(async (tx) => {
-        const sub = await tx.formSubmission.create({
-          data: {
-            formType: "OTHER_EXPENSE",
-            applicantId,
-            status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
-            currentStep: 1,
-          },
-        });
-
-        const formNumber = await generateFormNumber(tx, "OTHER_EXPENSE", dateStr);
-
-        await tx.otherExpenseRequest.create({
-          data: {
-            submissionId: sub.id,
-            formNumber,
-            applicantId,
-            year: parsed.year,
-            month: parsed.month,
-            totalAmount,
-            totalReceipts,
-            items: {
-              create: normalized.map((it) => ({
-                date: toDateOnly(it.date),
-                itemName: it.itemName,
-                purpose: it.purpose,
-                quantity: it.quantity,
-                unitPrice: it.unitPrice,
-                subtotal: it.subtotal,
-                receipts: it.receipts,
-              })),
-            },
-          },
-        });
-
-        const approvers = await resolveWorkflowApprovers(
-          tx,
+  const submissionId = await retryOnUniqueViolation(() =>
+    prisma.$transaction(async (tx) => {
+      const sub = await tx.formSubmission.create({
+        data: {
+          formType: "OTHER_EXPENSE",
           applicantId,
-          workflowSteps,
-        );
-        for (const a of approvers) {
-          await tx.approvalAction.create({
-            data: { submissionId: sub.id, stepOrder: a.stepOrder, approverId: a.approverId },
-          });
-        }
-
-        if (workflowSteps.length > 0) {
-          const firstAction = await tx.approvalAction.findFirst({
-            where: { submissionId: sub.id, stepOrder: 1 },
-          });
-          if (firstAction) {
-            await tx.notification.create({
-              data: {
-                userId: firstAction.approverId,
-                submissionId: sub.id,
-                title: "新的待簽核表單",
-                message: `${session.user.name ?? session.user.email} 提交了其他費用申請單，請前往簽核`,
-              },
-            });
-          }
-        }
-
-        await upsertAttachment(tx, sub.id, formData);
-
-        return sub.id;
+          status: workflowSteps.length > 0 ? "PENDING" : "APPROVED",
+          currentStep: 1,
+        },
       });
-      break;
-    } catch (e) {
-      const isUniqueViolation =
-        e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-      if (isUniqueViolation && attempt < 4) continue;
-      throw e;
-    }
-  }
+
+      const formNumber = await generateFormNumber(tx, "OTHER_EXPENSE", dateStr);
+
+      await tx.otherExpenseRequest.create({
+        data: {
+          submissionId: sub.id,
+          formNumber,
+          applicantId,
+          year: parsed.year,
+          month: parsed.month,
+          totalAmount,
+          totalReceipts,
+          items: { create: itemsCreateInput(normalized) },
+        },
+      });
+
+      await createWorkflowApprovalsAndNotify(tx, {
+        submissionId: sub.id,
+        applicantId,
+        workflowSteps,
+        notification: {
+          title: "新的待簽核表單",
+          message: `${displayName} 提交了其他費用申請單，請前往簽核`,
+        },
+      });
+
+      await upsertAttachment(tx, sub.id, formData);
+      return sub.id;
+    }),
+  );
 
   revalidatePath("/");
   revalidatePath("/other-expense");
@@ -181,6 +134,7 @@ export async function resubmitOtherExpenseRequest(submissionId: string, formData
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
   const applicantId = session.user.id;
+  const displayName = session.user.name ?? session.user.email;
 
   const submission = await prisma.formSubmission.findUniqueOrThrow({
     where: { id: submissionId },
@@ -191,21 +145,7 @@ export async function resubmitOtherExpenseRequest(submissionId: string, formData
   if (submission.status !== "REJECTED") throw new Error("只有被退件的表單可以重送");
   if (!submission.otherExpenseRequest) throw new Error("找不到對應的申請單");
 
-  const raw = {
-    year: Number(formData.get("year")),
-    month: Number(formData.get("month")),
-    items: parseItemsJson(formData.get("items")),
-  };
-  let parsed: ReturnType<typeof createOtherExpenseRequestSchema.parse>;
-  try {
-    parsed = createOtherExpenseRequestSchema.parse(raw);
-  } catch (e) {
-    if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
-    }
-    throw e;
-  }
-
+  const parsed = safeZodParse(createOtherExpenseRequestSchema, parseYearMonthItems(formData));
   await assertNoActiveRequestInMonth(applicantId, parsed.year, parsed.month, submissionId);
 
   const { normalized, totalAmount, totalReceipts } = computeTotals(parsed.items);
@@ -227,17 +167,7 @@ export async function resubmitOtherExpenseRequest(submissionId: string, formData
         month: parsed.month,
         totalAmount,
         totalReceipts,
-        items: {
-          create: normalized.map((it) => ({
-            date: toDateOnly(it.date),
-            itemName: it.itemName,
-            purpose: it.purpose,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            subtotal: it.subtotal,
-            receipts: it.receipts,
-          })),
-        },
+        items: { create: itemsCreateInput(normalized) },
       },
     });
 
@@ -255,32 +185,16 @@ export async function resubmitOtherExpenseRequest(submissionId: string, formData
       },
     });
 
-    const approvers = await resolveWorkflowApprovers(
-      tx,
+    await createWorkflowApprovalsAndNotify(tx, {
+      submissionId,
       applicantId,
       workflowSteps,
-    );
-    for (const a of approvers) {
-      await tx.approvalAction.create({
-        data: { submissionId, round: newRound, stepOrder: a.stepOrder, approverId: a.approverId },
-      });
-    }
-
-    if (workflowSteps.length > 0) {
-      const firstAction = await tx.approvalAction.findFirst({
-        where: { submissionId, round: newRound, stepOrder: 1 },
-      });
-      if (firstAction) {
-        await tx.notification.create({
-          data: {
-            userId: firstAction.approverId,
-            submissionId,
-            title: "其他費用申請單已修改重送",
-            message: `${session.user.name ?? session.user.email} 修改了其他費用申請單並重新送出，請前往簽核`,
-          },
-        });
-      }
-    }
+      round: newRound,
+      notification: {
+        title: "其他費用申請單已修改重送",
+        message: `${displayName} 修改了其他費用申請單並重新送出，請前往簽核`,
+      },
+    });
 
     await upsertAttachment(tx, submissionId, formData);
   });
