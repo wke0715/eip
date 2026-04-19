@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { submitOvertimeRequest } from "@/actions/overtime";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import {
   calcWorkHoursFromRange,
   splitHolidayHours,
@@ -15,6 +15,7 @@ import {
 import {
   ExpenseFormShell,
   SELECT_CLASS,
+  DeleteRowCell,
 } from "@/components/shared/expense-form-shell";
 
 const DAY_TYPE_OPTIONS = [
@@ -266,16 +267,7 @@ export function OvertimeForm({
                     className="h-8 text-xs"
                   />
                 </td>
-                <td className="p-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(idx)}
-                    className="text-red-600 hover:text-red-700"
-                    title="刪除此列"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+                <DeleteRowCell onRemove={() => removeRow(idx)} />
               </tr>
             ))}
             {rows.length === 0 && (

@@ -13,6 +13,37 @@ import { upsertAttachment } from "@/lib/attachment";
 
 type TxClient = Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
+function parseAndValidateLeaveForm(formData: FormData) {
+  const raw = {
+    leaveTypeId: formData.get("leaveTypeId"),
+    startDate: formData.get("startDate"),
+    startTime: formData.get("startTime"),
+    endDate: formData.get("endDate"),
+    endTime: formData.get("endTime"),
+    reason: formData.get("reason"),
+  };
+
+  let parsed: ReturnType<typeof createLeaveRequestSchema.parse>;
+  try {
+    parsed = createLeaveRequestSchema.parse(raw);
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
+    }
+    throw e;
+  }
+
+  const startDateTime = new Date(`${parsed.startDate}T${parsed.startTime}:00+08:00`);
+  const endDateTime = new Date(`${parsed.endDate}T${parsed.endTime}:00+08:00`);
+
+  if (endDateTime <= startDateTime) throw new Error("結束日期不能早於起始日期");
+
+  const hours = calculateLeaveHours(startDateTime, endDateTime);
+  if (hours <= 0) throw new Error("請假時數須大於 0");
+
+  return { parsed, startDateTime, endDateTime, hours };
+}
+
 function getTaipeiDateStr(): string {
   const now = new Date();
   const taipeiDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
@@ -40,34 +71,7 @@ export async function submitLeaveRequest(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
 
-  const raw = {
-    leaveTypeId: formData.get("leaveTypeId"),
-    startDate: formData.get("startDate"),
-    startTime: formData.get("startTime"),
-    endDate: formData.get("endDate"),
-    endTime: formData.get("endTime"),
-    reason: formData.get("reason"),
-  };
-
-  let parsed: ReturnType<typeof createLeaveRequestSchema.parse>;
-  try {
-    parsed = createLeaveRequestSchema.parse(raw);
-  } catch (e) {
-    if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
-    }
-    throw e;
-  }
-
-  const startDateTime = new Date(`${parsed.startDate}T${parsed.startTime}:00+08:00`);
-  const endDateTime = new Date(`${parsed.endDate}T${parsed.endTime}:00+08:00`);
-
-  if (endDateTime <= startDateTime) {
-    throw new Error("結束日期不能早於起始日期");
-  }
-
-  const hours = calculateLeaveHours(startDateTime, endDateTime);
-  if (hours <= 0) throw new Error("請假時數須大於 0");
+  const { parsed, startDateTime, endDateTime, hours } = parseAndValidateLeaveForm(formData);
 
   // 檢查是否與現有假單時段重疊（PENDING 或 APPROVED）
   const overlapping = await prisma.leaveRequest.findFirst({
@@ -176,31 +180,7 @@ export async function resubmitLeaveRequest(submissionId: string, formData: FormD
   if (submission.applicantId !== session.user.id) throw new Error("只能修改自己的申請");
   if (submission.status !== "REJECTED") throw new Error("只有被退件的表單可以重送");
 
-  const raw = {
-    leaveTypeId: formData.get("leaveTypeId"),
-    startDate: formData.get("startDate"),
-    startTime: formData.get("startTime"),
-    endDate: formData.get("endDate"),
-    endTime: formData.get("endTime"),
-    reason: formData.get("reason"),
-  };
-
-  let parsed: ReturnType<typeof createLeaveRequestSchema.parse>;
-  try {
-    parsed = createLeaveRequestSchema.parse(raw);
-  } catch (e) {
-    if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
-    }
-    throw e;
-  }
-
-  const startDateTime = new Date(`${parsed.startDate}T${parsed.startTime}:00+08:00`);
-  const endDateTime = new Date(`${parsed.endDate}T${parsed.endTime}:00+08:00`);
-
-  if (endDateTime <= startDateTime) throw new Error("結束日期不能早於起始日期");
-
-  const hours = calculateLeaveHours(startDateTime, endDateTime);
+  const { parsed, startDateTime, endDateTime, hours } = parseAndValidateLeaveForm(formData);
   if (hours <= 0) throw new Error("請假時數須大於 0");
 
   // 檢查是否與其他假單時段重疊（排除本次重送的那筆）
