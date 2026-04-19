@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { submitOtherExpenseRequest } from "@/actions/otherExpense";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   calcOtherExpenseSubtotal,
   type OtherExpenseItemInput,
 } from "@/lib/validators/otherExpense";
-import { ExpenseFormShell } from "@/components/shared/expense-form-shell";
+import {
+  ExpenseFormShell,
+  ReceiptsCell,
+  DeleteRowCell,
+} from "@/components/shared/expense-form-shell";
 
 function emptyItem(date: string): OtherExpenseItemInput {
   return {
@@ -211,27 +215,11 @@ export function OtherExpenseForm({
                     : calcOtherExpenseSubtotal(it)
                   ).toLocaleString("zh-TW")}
                 </td>
-                <td className="p-1">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={it.receipts}
-                    onChange={(e) =>
-                      updateItem(idx, { receipts: Number(e.target.value) })
-                    }
-                    className="h-8 text-xs"
-                  />
-                </td>
-                <td className="p-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(idx)}
-                    className="text-red-600 hover:text-red-700"
-                    title="刪除此列"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+                <ReceiptsCell
+                  receipts={it.receipts}
+                  onUpdate={(v) => updateItem(idx, { receipts: v })}
+                />
+                <DeleteRowCell onRemove={() => removeRow(idx)} />
               </tr>
             ))}
             {rows.length === 0 && (

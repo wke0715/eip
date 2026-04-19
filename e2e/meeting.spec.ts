@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAs } from "./helpers/auth";
+import { bookMeeting, fillBookingForm } from "./helpers/meeting";
 
 test.describe("會議室", () => {
   test.beforeEach(async ({ context }) => {
@@ -56,14 +57,12 @@ test.describe("會議室", () => {
   });
 
   test("成功送出後跳回日曆頁", async ({ page }) => {
-    await page.goto("/meeting/book");
-
-    await page.locator('select[name="roomId"]').selectOption({ value: "test-room-id" });
-    await page.getByLabel("日期").fill("2026-12-01");
-    await page.locator('select[name="startTime"]').selectOption("09:00");
-    await page.locator('select[name="endTime"]').selectOption("10:00");
-    await page.getByLabel("會議主題").fill("E2E 測試會議");
-    await page.getByRole("button", { name: "確認預約" }).click();
+    await bookMeeting(page, {
+      date: "2026-12-01",
+      startTime: "09:00",
+      endTime: "10:00",
+      title: "E2E 測試會議",
+    });
 
     await expect(page).toHaveURL(/\/meeting$/);
     await expect(page.getByRole("heading", { name: "會議室" })).toBeVisible();
@@ -71,12 +70,12 @@ test.describe("會議室", () => {
 
   test("起始時間等於結束時間顯示錯誤", async ({ page }) => {
     await page.goto("/meeting/book");
-
-    await page.locator('select[name="roomId"]').selectOption({ value: "test-room-id" });
-    await page.getByLabel("日期").fill("2026-12-02");
-    await page.locator('select[name="startTime"]').selectOption("10:00");
-    await page.locator('select[name="endTime"]').selectOption("10:00");
-    await page.getByLabel("會議主題").fill("時間錯誤測試");
+    await fillBookingForm(page, {
+      date: "2026-12-02",
+      startTime: "10:00",
+      endTime: "10:00",
+      title: "時間錯誤測試",
+    });
     await page.getByRole("button", { name: "確認預約" }).click();
 
     await expect(page.getByText("結束時間須晚於起始時間")).toBeVisible();
@@ -84,22 +83,22 @@ test.describe("會議室", () => {
 
   test("同一時段重複預約顯示衝突錯誤", async ({ page }) => {
     // 先建立一筆預約
-    await page.goto("/meeting/book");
-    await page.locator('select[name="roomId"]').selectOption({ value: "test-room-id" });
-    await page.getByLabel("日期").fill("2026-12-03");
-    await page.locator('select[name="startTime"]').selectOption("14:00");
-    await page.locator('select[name="endTime"]').selectOption("15:00");
-    await page.getByLabel("會議主題").fill("衝突測試第一筆");
-    await page.getByRole("button", { name: "確認預約" }).click();
+    await bookMeeting(page, {
+      date: "2026-12-03",
+      startTime: "14:00",
+      endTime: "15:00",
+      title: "衝突測試第一筆",
+    });
     await expect(page).toHaveURL(/\/meeting$/);
 
     // 再預約相同時段
     await page.goto("/meeting/book");
-    await page.locator('select[name="roomId"]').selectOption({ value: "test-room-id" });
-    await page.getByLabel("日期").fill("2026-12-03");
-    await page.locator('select[name="startTime"]').selectOption("14:00");
-    await page.locator('select[name="endTime"]').selectOption("15:00");
-    await page.getByLabel("會議主題").fill("衝突測試第二筆");
+    await fillBookingForm(page, {
+      date: "2026-12-03",
+      startTime: "14:00",
+      endTime: "15:00",
+      title: "衝突測試第二筆",
+    });
     await page.getByRole("button", { name: "確認預約" }).click();
 
     await expect(page.getByText("該時段已被預約")).toBeVisible();
@@ -107,13 +106,12 @@ test.describe("會議室", () => {
 
   test("day 視圖顯示當天預約", async ({ page }) => {
     // 先建立預約
-    await page.goto("/meeting/book");
-    await page.locator('select[name="roomId"]').selectOption({ value: "test-room-id" });
-    await page.getByLabel("日期").fill("2026-12-04");
-    await page.locator('select[name="startTime"]').selectOption("11:00");
-    await page.locator('select[name="endTime"]').selectOption("12:00");
-    await page.getByLabel("會議主題").fill("Day 視圖測試會議");
-    await page.getByRole("button", { name: "確認預約" }).click();
+    await bookMeeting(page, {
+      date: "2026-12-04",
+      startTime: "11:00",
+      endTime: "12:00",
+      title: "Day 視圖測試會議",
+    });
     await expect(page).toHaveURL(/\/meeting$/);
 
     // 切到 day 視圖

@@ -65,6 +65,37 @@ export interface ParsedCalendarData {
   errors: string[];
 }
 
+function parsePersonCells(
+  sheet: XLSX.WorkSheet,
+  rowIdx: number,
+  dateStr: string,
+  weekNumber: number | null,
+): CalendarEventInput[] {
+  const result: CalendarEventInput[] = [];
+  for (const [col, personName] of Object.entries(PERSON_COLUMNS)) {
+    const colIdx = col.charCodeAt(0) - "A".charCodeAt(0);
+    const cell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })];
+    const rawValue = cell?.v ? String(cell.v).trim() : "";
+    const fgColor: string | undefined =
+      cell?.s?.fgColor?.rgb ?? cell?.s?.bgColor?.rgb ?? undefined;
+    const status = colorToStatus(fgColor);
+    const isHoliday = status === "HOLIDAY";
+    if (!rawValue && !isHoliday) continue;
+    const { amTask, pmTask, fullDayTask } = splitTask(rawValue);
+    result.push({
+      date: dateStr,
+      personName,
+      amTask,
+      pmTask,
+      fullDayTask,
+      status,
+      isHoliday,
+      weekNumber,
+    });
+  }
+  return result;
+}
+
 export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
   const workbook = XLSX.read(buffer, {
     type: "array",
@@ -120,34 +151,7 @@ export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
     }
 
     // Col D ~ H：各人員任務
-    const colEntries = Object.entries(PERSON_COLUMNS); // [["D",name], ...]
-    for (const [col, personName] of colEntries) {
-      const colIdx = col.charCodeAt(0) - "A".charCodeAt(0);
-      const cell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })];
-      const rawValue = cell?.v ? String(cell.v).trim() : "";
-
-      // 判斷顏色
-      const fgColor: string | undefined =
-        cell?.s?.fgColor?.rgb ?? cell?.s?.bgColor?.rgb ?? undefined;
-      const status = colorToStatus(fgColor);
-      const isHoliday = status === "HOLIDAY";
-
-      // 即使沒有任務內容，但如果是假日，仍要記錄
-      if (!rawValue && !isHoliday) continue;
-
-      const { amTask, pmTask, fullDayTask } = splitTask(rawValue);
-
-      events.push({
-        date: dateStr,
-        personName,
-        amTask,
-        pmTask,
-        fullDayTask,
-        status,
-        isHoliday,
-        weekNumber: currentWeekNumber,
-      });
-    }
+    events.push(...parsePersonCells(sheet, rowIdx, dateStr, currentWeekNumber));
   }
 
   return { events, clientEvents, errors };
