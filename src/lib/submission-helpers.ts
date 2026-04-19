@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { resolveWorkflowApprovers } from "@/lib/workflow";
 import { generateFormNumber } from "@/lib/form-number";
+import type { ExpenseItemInput } from "@/lib/validators/expense";
 
 export function parseItemsJson(raw: FormDataEntryValue | null): unknown {
   if (typeof raw !== "string" || raw.trim() === "") return [];
@@ -20,6 +21,50 @@ export function toDateOnly(dateStr: string): Date {
 
 export function toDateStr(d: Date): string {
   return new Date(d.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+type DbExpenseItem = {
+  date: Date;
+  days: number;
+  workCategory: string;
+  workDetail: string;
+  mileageSubsidy: number;
+  parkingFee: number;
+  etcFee: number;
+  gasFee: number;
+  transportType: string | null;
+  transportAmount: number;
+  mealType: string | null;
+  mealAmount: number;
+  otherKind: string | null;
+  otherName: string | null;
+  otherAmount: number;
+  subtotal: number;
+  receipts: number;
+  remark: string | null;
+};
+
+export function mapExpenseItems(items: DbExpenseItem[]): ExpenseItemInput[] {
+  return items.map((it) => ({
+    date: toDateStr(it.date),
+    days: it.days,
+    workCategory: it.workCategory as ExpenseItemInput["workCategory"],
+    workDetail: it.workDetail,
+    mileageSubsidy: it.mileageSubsidy,
+    parkingFee: it.parkingFee,
+    etcFee: it.etcFee,
+    gasFee: it.gasFee,
+    transportType: it.transportType as ExpenseItemInput["transportType"],
+    transportAmount: it.transportAmount,
+    mealType: it.mealType as ExpenseItemInput["mealType"],
+    mealAmount: it.mealAmount,
+    otherKind: it.otherKind as ExpenseItemInput["otherKind"],
+    otherName: it.otherName,
+    otherAmount: it.otherAmount,
+    subtotal: it.subtotal,
+    receipts: it.receipts,
+    remark: it.remark,
+  }));
 }
 
 export function parseYearMonthItems(formData: FormData) {

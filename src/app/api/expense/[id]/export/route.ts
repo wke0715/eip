@@ -2,13 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildExpenseWorkbook } from "@/lib/excel/expense-exporter";
-import type { ExpenseItemInput } from "@/lib/validators/expense";
-
-const TW_OFFSET_MS = 8 * 60 * 60 * 1000;
-
-function toDateStr(d: Date) {
-  return new Date(d.getTime() + TW_OFFSET_MS).toISOString().slice(0, 10);
-}
+import { mapExpenseItems } from "@/lib/submission-helpers";
 
 export async function GET(
   _req: Request,
@@ -43,26 +37,7 @@ export async function GET(
   }
 
   const r = submission.expenseReport;
-  const items: ExpenseItemInput[] = r.items.map((it) => ({
-    date: toDateStr(it.date),
-    days: it.days,
-    workCategory: it.workCategory as ExpenseItemInput["workCategory"],
-    workDetail: it.workDetail,
-    mileageSubsidy: it.mileageSubsidy,
-    parkingFee: it.parkingFee,
-    etcFee: it.etcFee,
-    gasFee: it.gasFee,
-    transportType: it.transportType as ExpenseItemInput["transportType"],
-    transportAmount: it.transportAmount,
-    mealType: it.mealType as ExpenseItemInput["mealType"],
-    mealAmount: it.mealAmount,
-    otherKind: it.otherKind as ExpenseItemInput["otherKind"],
-    otherName: it.otherName,
-    otherAmount: it.otherAmount,
-    subtotal: it.subtotal,
-    receipts: it.receipts,
-    remark: it.remark,
-  }));
+  const items = mapExpenseItems(r.items);
 
   const buffer = buildExpenseWorkbook({
     formNumber: r.formNumber,

@@ -3,9 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resubmitExpenseReport } from "@/actions/expense";
 import { getMaxAttachmentSizeMb } from "@/lib/settings";
-import { toDateStr } from "@/lib/submission-helpers";
+import { mapExpenseItems } from "@/lib/submission-helpers";
 import { ExpenseForm } from "../../new/expense-form";
-import type { ExpenseItemInput } from "@/lib/validators/expense";
 
 export default async function ResubmitExpensePage({
   params,
@@ -39,26 +38,7 @@ export default async function ResubmitExpensePage({
 
   const r = submission.expenseReport;
 
-  const items: ExpenseItemInput[] = r.items.map((it) => ({
-    date: toDateStr(it.date),
-    days: it.days,
-    workCategory: it.workCategory as ExpenseItemInput["workCategory"],
-    workDetail: it.workDetail,
-    mileageSubsidy: it.mileageSubsidy,
-    parkingFee: it.parkingFee,
-    etcFee: it.etcFee,
-    gasFee: it.gasFee,
-    transportType: it.transportType as ExpenseItemInput["transportType"],
-    transportAmount: it.transportAmount,
-    mealType: it.mealType as ExpenseItemInput["mealType"],
-    mealAmount: it.mealAmount,
-    otherKind: it.otherKind as ExpenseItemInput["otherKind"],
-    otherName: it.otherName,
-    otherAmount: it.otherAmount,
-    subtotal: it.subtotal,
-    receipts: it.receipts,
-    remark: it.remark,
-  }));
+  const items = mapExpenseItems(r.items);
 
   const boundAction = resubmitExpenseReport.bind(null, id);
   const maxSizeMb = await getMaxAttachmentSizeMb();
