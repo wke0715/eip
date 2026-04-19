@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { submitOtherExpenseRequest } from "@/actions/otherExpense";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import {
   calcOtherExpenseSubtotal,
   type OtherExpenseItemInput,
 } from "@/lib/validators/otherExpense";
 import {
   ExpenseFormShell,
+  ItemsTableHeader,
   ReceiptsCell,
   DeleteRowCell,
 } from "@/components/shared/expense-form-shell";
@@ -132,13 +132,7 @@ export function OtherExpenseForm({
       error={error}
       onErrorClose={() => setError(null)}
     >
-      <div className="flex items-center justify-between pt-2">
-        <h3 className="font-semibold">明細</h3>
-        <Button type="button" variant="outline" size="sm" onClick={addRow}>
-          <Plus className="h-3 w-3 mr-1" />
-          新增一列
-        </Button>
-      </div>
+      <ItemsTableHeader onAddRow={addRow} />
 
       <div className="border rounded-md overflow-x-auto">
         <table className="w-full text-xs">

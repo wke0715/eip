@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { AttachmentInput } from "@/components/shared/attachment-input";
 import { ErrorDialog } from "@/components/shared/error-dialog";
-import { Trash2 } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 
 export function ReceiptsCell({
   receipts,
@@ -41,6 +41,18 @@ export function DeleteRowCell({ onRemove }: { onRemove: () => void }) {
         <Trash2 className="h-4 w-4" />
       </button>
     </td>
+  );
+}
+
+export function ItemsTableHeader({ onAddRow }: { onAddRow: () => void }) {
+  return (
+    <div className="flex items-center justify-between pt-2">
+      <h3 className="font-semibold">明細</h3>
+      <Button type="button" variant="outline" size="sm" onClick={onAddRow}>
+        <Plus className="h-3 w-3 mr-1" />
+        新增一列
+      </Button>
+    </div>
   );
 }
 
