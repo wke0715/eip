@@ -140,7 +140,7 @@ function parseExpenseSheet(
     const remark = toStr(row[15]) || null;
 
     // 從工作項目字串嘗試推斷 workCategory（S/C/T/O）
-    const catMatch = workDetail.match(/_(S|C|T|O)(?:[^A-Z]|$)/);
+    const catMatch = workDetail.match(/_([SCTO])(?:[^A-Z]|$)/);
     const workCategory = (catMatch?.[1] ?? "O") as "S" | "C" | "T" | "O";
 
     items.push({
@@ -243,9 +243,8 @@ function parseOvertimeSheet(
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] ?? [];
     const first = toStr(row[0]);
-    if (!first) continue;
-    if (isSummaryRow(first)) continue;
-    if (/^註/.test(first)) break; // 備註區開始就停
+    if (!first || isSummaryRow(first)) continue;
+    if (first.startsWith("註")) break; // 備註區開始就停
 
     const date = parseExpenseDate(first, year);
     if (!date) continue; // 空列或樣例列略過

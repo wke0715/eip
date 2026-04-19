@@ -63,6 +63,15 @@ function bookingDateKey(isoDate: string): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+function buildMeetingGrid(year: number, month: number) {
+  let empIdx = 0;
+  return getMonthGrid(year, month).map((day, i) => ({
+    day,
+    colIdx: i % 7,
+    key: day ? toDateKey(year, month, day) : `empty-${year}-${month}-${empIdx++}`,
+  }));
+}
+
 function isToday(year: number, month: number, day: number): boolean {
   const now = new Date();
   return now.getFullYear() === year && now.getMonth() + 1 === month && now.getDate() === day;
@@ -248,21 +257,20 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
 
           {/* Day cells */}
           <div className="grid grid-cols-7">
-            {grid.map((day, i) => {
-              const colIdx = i % 7;
+            {buildMeetingGrid(year, month).map(({ day, colIdx, key: cellKey }) => {
               const dayKey = day ? toDateKey(year, month, day) : null;
               const dayEvents = dayKey ? (byDay.get(dayKey) ?? []) : [];
               const todayCell = day ? isToday(year, month, day) : false;
               const MAX_VISIBLE = 3;
 
               if (!day) {
-                return <div key={`empty-${i}`} className="min-h-[120px] border-b border-r last:border-r-0 bg-muted/10 transition-colors" />;
+                return <div key={cellKey} className="min-h-[120px] border-b border-r last:border-r-0 bg-muted/10 transition-colors" />;
               }
 
               return (
                 <button
                   type="button"
-                  key={dayKey!}
+                  key={cellKey}
                   className="min-h-[120px] border-b border-r last:border-r-0 p-1 transition-colors cursor-pointer hover:bg-muted/20 text-left w-full"
                   onClick={() => dayKey && openNewBooking(dayKey)}
                   onKeyDown={(e) => {

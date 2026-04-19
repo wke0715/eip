@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { submitExpenseReport } from "@/actions/expense";
 import { Input } from "@/components/ui/input";
@@ -77,6 +77,8 @@ export interface ExpenseFormDefaultValues {
   items: ExpenseItemInput[];
 }
 
+type ExpenseRow = { key: number; item: ExpenseItemInput };
+
 export function ExpenseForm({
   defaultValues,
   submitAction = submitExpenseReport,
@@ -92,43 +94,51 @@ export function ExpenseForm({
 
   const [year, setYear] = useState<number>(defaultValues.year);
   const [month, setMonth] = useState<number>(defaultValues.month);
-  const [items, setItems] = useState<ExpenseItemInput[]>(
-    defaultValues.items.length > 0
-      ? defaultValues.items
-      : [
-          emptyItem(
-            `${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`,
-          ),
-        ],
-  );
+
+  const nextKey = useRef(0);
+  const toRows = (items: ExpenseItemInput[]): ExpenseRow[] =>
+    items.map((item) => ({ key: nextKey.current++, item }));
+
+  const [rows, setRows] = useState<ExpenseRow[]>(() => {
+    const initial =
+      defaultValues.items.length > 0
+        ? defaultValues.items
+        : [
+            emptyItem(
+              `${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`,
+            ),
+          ];
+    return toRows(initial);
+  });
 
   const totals = useMemo(() => {
-    const amount = items.reduce(
-      (sum, it) =>
+    const amount = rows.reduce(
+      (sum, { item: it }) =>
         sum + (it.subtotal > 0 ? it.subtotal : calcExpenseItemSubtotal(it)),
       0,
     );
-    const receipts = items.reduce((sum, it) => sum + (it.receipts ?? 0), 0);
+    const receipts = rows.reduce((sum, { item: it }) => sum + (it.receipts ?? 0), 0);
     return { amount, receipts };
-  }, [items]);
+  }, [rows]);
 
   function updateItem(idx: number, patch: Partial<ExpenseItemInput>) {
-    setItems((prev) => {
-      const next = [...prev];
-      const merged = { ...next[idx], ...patch };
-      merged.subtotal = calcExpenseItemSubtotal(merged);
-      next[idx] = merged;
-      return next;
-    });
+    setRows((prev) =>
+      prev.map((row, i) => {
+        if (i !== idx) return row;
+        const merged = { ...row.item, ...patch };
+        merged.subtotal = calcExpenseItemSubtotal(merged);
+        return { ...row, item: merged };
+      }),
+    );
   }
 
   function addRow() {
     const base = `${year}-${String(month).padStart(2, "0")}-01`;
-    setItems((prev) => [...prev, emptyItem(base)]);
+    setRows((prev) => [...prev, { key: nextKey.current++, item: emptyItem(base) }]);
   }
 
   function removeRow(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+    setRows((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -143,7 +153,7 @@ export function ExpenseForm({
         setError(null);
       }
       if (parsed.items.length > 0) {
-        setItems(parsed.items);
+        setRows(toRows(parsed.items));
         setYear(parsed.year);
         const m = new Date(parsed.items[0].date).getMonth() + 1;
         if (m >= 1 && m <= 12) setMonth(m);
@@ -157,11 +167,11 @@ export function ExpenseForm({
 
   function handleSubmit(formData: FormData) {
     setError(null);
-    if (items.length === 0) {
+    if (rows.length === 0) {
       setError("至少需要一筆明細");
       return;
     }
-    const normalized = items.map((it) => ({
+    const normalized = rows.map(({ item: it }) => ({
       ...it,
       subtotal: it.subtotal > 0 ? it.subtotal : calcExpenseItemSubtotal(it),
     }));
@@ -190,7 +200,7 @@ export function ExpenseForm({
       maxSizeMb={defaultValues.maxSizeMb}
       onSubmit={handleSubmit}
       isPending={isPending}
-      hasItems={items.length > 0}
+      hasItems={rows.length > 0}
       submitLabel={submitLabel}
       error={error}
       onErrorClose={() => setError(null)}
@@ -238,8 +248,8 @@ export function ExpenseForm({
             </tr>
           </thead>
           <tbody>
-            {items.map((it, idx) => (
-              <tr key={idx} className="border-t">
+            {rows.map(({ key, item: it }, idx) => (
+              <tr key={key} className="border-t">
                 <td className="p-1">
                   <Input
                     type="date"
@@ -442,7 +452,7 @@ export function ExpenseForm({
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td
                   colSpan={16}

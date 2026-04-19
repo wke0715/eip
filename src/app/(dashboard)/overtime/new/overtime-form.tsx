@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { submitOvertimeRequest } from "@/actions/overtime";
 import { Input } from "@/components/ui/input";
@@ -61,81 +61,70 @@ export function OvertimeForm({
 
   const [year, setYear] = useState<number>(defaultValues.year);
   const [month, setMonth] = useState<number>(defaultValues.month);
-  const [items, setItems] = useState<OvertimeItemInput[]>(
-    defaultValues.items.length > 0
-      ? defaultValues.items
-      : [
-          emptyItem(
-            `${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`,
-          ),
-        ],
-  );
+
+  const nextKey = useRef(0);
+  const [rows, setRows] = useState<Array<{ key: number; item: OvertimeItemInput }>>(() => {
+    const initial =
+      defaultValues.items.length > 0
+        ? defaultValues.items
+        : [emptyItem(`${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`)];
+    return initial.map((item) => ({ key: nextKey.current++, item }));
+  });
 
   const totals = useMemo(() => {
-    const workHours = items.reduce((sum, it) => sum + (it.workHours ?? 0), 0);
-    const overtimeHours = items.reduce(
-      (sum, it) => sum + (it.overtimeHours ?? 0),
-      0,
-    );
-    const holidayPay = items.reduce(
-      (sum, it) => sum + (it.holidayDoublePay ?? 0),
-      0,
-    );
-    const overtimePay = items.reduce(
-      (sum, it) => sum + (it.overtimePay ?? 0),
-      0,
-    );
+    const workHours = rows.reduce((sum, { item: it }) => sum + (it.workHours ?? 0), 0);
+    const overtimeHours = rows.reduce((sum, { item: it }) => sum + (it.overtimeHours ?? 0), 0);
+    const holidayPay = rows.reduce((sum, { item: it }) => sum + (it.holidayDoublePay ?? 0), 0);
+    const overtimePay = rows.reduce((sum, { item: it }) => sum + (it.overtimePay ?? 0), 0);
     return { workHours, overtimeHours, holidayPay, overtimePay };
-  }, [items]);
+  }, [rows]);
 
   const showOvertimeWarning = totals.overtimeHours > OVERTIME_WARNING_HOURS;
 
   function updateItem(idx: number, patch: Partial<OvertimeItemInput>) {
-    setItems((prev) => {
-      const next = [...prev];
-      const merged = { ...next[idx], ...patch };
-      // 重新計算 workHours
-      if (patch.workTime !== undefined) {
-        merged.workHours = calcWorkHoursFromRange(merged.workTime);
-      }
-      // 若 workHours 或 dayType 改變，重新計算加班/雙倍薪
-      if (
-        patch.workTime !== undefined ||
-        patch.dayType !== undefined ||
-        patch.workHours !== undefined
-      ) {
-        const wh =
-          patch.workHours !== undefined ? patch.workHours : merged.workHours;
-        const { doublePayHours, overtimeHours } = splitHolidayHours(
-          wh,
-          merged.dayType,
-        );
-        merged.workHours = wh;
-        merged.overtimeHours = overtimeHours;
-        // holidayDoublePay 只存時數，實際金額由使用者自填
-        merged.holidayDoublePay = doublePayHours;
-      }
-      next[idx] = merged;
-      return next;
-    });
+    setRows((prev) =>
+      prev.map((row, i) => {
+        if (i !== idx) return row;
+        const merged = { ...row.item, ...patch };
+        // 重新計算 workHours
+        if (patch.workTime !== undefined) {
+          merged.workHours = calcWorkHoursFromRange(merged.workTime);
+        }
+        // 若 workHours 或 dayType 改變，重新計算加班/雙倍薪
+        if (
+          patch.workTime !== undefined ||
+          patch.dayType !== undefined ||
+          patch.workHours !== undefined
+        ) {
+          const wh =
+            patch.workHours !== undefined ? patch.workHours : merged.workHours;
+          const { doublePayHours, overtimeHours } = splitHolidayHours(wh, merged.dayType);
+          merged.workHours = wh;
+          merged.overtimeHours = overtimeHours;
+          // holidayDoublePay 只存時數，實際金額由使用者自填
+          merged.holidayDoublePay = doublePayHours;
+        }
+        return { ...row, item: merged };
+      }),
+    );
   }
 
   function addRow() {
     const base = `${year}-${String(month).padStart(2, "0")}-01`;
-    setItems((prev) => [...prev, emptyItem(base)]);
+    setRows((prev) => [...prev, { key: nextKey.current++, item: emptyItem(base) }]);
   }
 
   function removeRow(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+    setRows((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function handleSubmit(formData: FormData) {
     setError(null);
-    if (items.length === 0) {
+    if (rows.length === 0) {
       setError("至少需要一筆明細");
       return;
     }
-    formData.set("items", JSON.stringify(items));
+    formData.set("items", JSON.stringify(rows.map((r) => r.item)));
     startTransition(async () => {
       try {
         await submitAction(formData);
@@ -160,7 +149,7 @@ export function OvertimeForm({
       maxSizeMb={defaultValues.maxSizeMb}
       onSubmit={handleSubmit}
       isPending={isPending}
-      hasItems={items.length > 0}
+      hasItems={rows.length > 0}
       submitLabel={submitLabel}
       error={error}
       onErrorClose={() => setError(null)}
@@ -198,8 +187,8 @@ export function OvertimeForm({
             </tr>
           </thead>
           <tbody>
-            {items.map((it, idx) => (
-              <tr key={idx} className="border-t">
+            {rows.map(({ key, item: it }, idx) => (
+              <tr key={key} className="border-t">
                 <td className="p-1">
                   <Input
                     type="date"
@@ -290,7 +279,7 @@ export function OvertimeForm({
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td
                   colSpan={10}

@@ -141,7 +141,7 @@ export async function rejectForm(submissionId: string, comment?: string) {
         userId: submission.applicantId,
         submissionId,
         title: "申請被退簽",
-        message: `你的申請在第 ${submission.currentStep} 關被退簽${comment ? `：${comment}` : ""}`,
+        message: `你的申請在第 ${submission.currentStep} 關被退簽${comment ? "：" + comment : ""}`,
       },
     });
   });

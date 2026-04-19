@@ -93,6 +93,15 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
   return cells;
 }
 
+function buildCalendarGrid(year: number, month: number) {
+  let empIdx = 0;
+  return getMonthGrid(year, month).map((day, i) => ({
+    day,
+    colIdx: i % 7,
+    key: day ? dateToKey(day) : `empty-${year}-${month}-${empIdx++}`,
+  }));
+}
+
 /** 取得 anchor 日期所在週的 Mon ~ Sun */
 function getWeekDays(anchor: Date): Date[] {
   const dow = anchor.getDay(); // 0=Sun
@@ -376,8 +385,7 @@ export function CalendarView({ initialPersonNames }: Props) {
 
           {/* 日格 */}
           <div className="grid grid-cols-7">
-            {getMonthGrid(year, month).map((day, i) => {
-              const colIdx = i % 7;
+            {buildCalendarGrid(year, month).map(({ day, colIdx, key: cellKey }) => {
               const dayKey = day ? dateToKey(day) : null;
               const dayEvents = dayKey ? (eventsByDay.get(dayKey) ?? []) : [];
               const dayClientEvents = dayKey ? (clientByDay.get(dayKey) ?? []) : [];
@@ -405,13 +413,13 @@ export function CalendarView({ initialPersonNames }: Props) {
               ];
 
               if (!day) {
-                return <div key={`empty-${i}`} className="min-h-[110px] border-b border-r last:border-r-0 bg-muted/10" />;
+                return <div key={cellKey} className="min-h-[110px] border-b border-r last:border-r-0 bg-muted/10" />;
               }
 
               return (
                 <button
                   type="button"
-                  key={dayKey!}
+                  key={cellKey}
                   onClick={() => { if (dayKey) openNewForDay(dayKey); }}
                   onKeyDown={(e) => {
                     if (dayKey && (e.key === "Enter" || e.key === " ")) {

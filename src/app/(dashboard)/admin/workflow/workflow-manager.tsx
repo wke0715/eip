@@ -222,7 +222,7 @@ export function WorkflowManager({ configs, approverOptions }: Props) {
           <div className="space-y-2">
             <Label>簽核關卡</Label>
             {steps.map((step, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={step.stepOrder} className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground w-16">
                   第 {step.stepOrder} 關
                 </span>

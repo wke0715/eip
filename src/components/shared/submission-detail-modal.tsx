@@ -22,6 +22,30 @@ const actionLabel: Record<string, string> = {
   REJECTED: "✗ 已退簽",
 };
 
+function getModalTitle(isExpense: boolean, isOtherExpense: boolean, isOvertime: boolean): string {
+  if (isExpense) return "出差旅費報告單詳情";
+  if (isOtherExpense) return "其他費用申請單詳情";
+  if (isOvertime) return "加班單詳情";
+  return "請假單詳情";
+}
+
+function getDialogClassName(isExpense: boolean, isOtherExpenseOrOvertime: boolean): string {
+  if (isExpense) return "max-w-5xl overflow-y-auto max-h-[90vh]";
+  if (isOtherExpenseOrOvertime) return "max-w-3xl overflow-y-auto max-h-[90vh]";
+  return "max-w-xl overflow-y-auto max-h-[90vh]";
+}
+
+function getApprovalStatusClass(action: string | null, wasWithdrawn: boolean): string {
+  if (!action) return wasWithdrawn ? "text-orange-500" : "text-yellow-600";
+  if (action === "APPROVED") return "text-green-600";
+  return "text-red-600";
+}
+
+function getApprovalStatusText(action: string | null, wasWithdrawn: boolean): string {
+  if (!action) return wasWithdrawn ? "— 未處理" : "⏳ 等待中";
+  return actionLabel[action] ?? action;
+}
+
 type ApprovalAction = Awaited<ReturnType<typeof getSubmissionDetail>>["approvalActions"][number];
 
 function groupByRound(actions: ApprovalAction[]): Map<number, ApprovalAction[]> {
@@ -211,24 +235,12 @@ export function SubmissionDetailModal({
   const isExpense = data?.formType === "EXPENSE";
   const isOtherExpense = data?.formType === "OTHER_EXPENSE";
   const isOvertime = data?.formType === "OVERTIME";
-  const title = isExpense
-    ? "出差旅費報告單詳情"
-    : isOtherExpense
-      ? "其他費用申請單詳情"
-      : isOvertime
-        ? "加班單詳情"
-        : "請假單詳情";
+  const title = getModalTitle(isExpense, isOtherExpense, isOvertime);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={
-          isExpense
-            ? "max-w-5xl overflow-y-auto max-h-[90vh]"
-            : isOtherExpense || isOvertime
-              ? "max-w-3xl overflow-y-auto max-h-[90vh]"
-              : "max-w-xl overflow-y-auto max-h-[90vh]"
-        }
+        className={getDialogClassName(isExpense, isOtherExpense || isOvertime)}
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -504,17 +516,9 @@ export function SubmissionDetailModal({
                                     {a.approver.name ?? a.approver.email}
                                   </span>
                                   <span
-                                    className={
-                                      !a.action
-                                        ? wasWithdrawn ? "text-orange-500" : "text-yellow-600"
-                                        : a.action === "APPROVED"
-                                        ? "text-green-600"
-                                        : "text-red-600"
-                                    }
+                                    className={getApprovalStatusClass(a.action, wasWithdrawn)}
                                   >
-                                    {!a.action
-                                      ? wasWithdrawn ? "— 未處理" : "⏳ 等待中"
-                                      : actionLabel[a.action] ?? a.action}
+                                    {getApprovalStatusText(a.action, wasWithdrawn)}
                                   </span>
                                 </div>
                                 {a.actedAt && (
