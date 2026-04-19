@@ -7,6 +7,42 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { AttachmentInput } from "@/components/shared/attachment-input";
 import { ErrorDialog } from "@/components/shared/error-dialog";
+import { Trash2 } from "lucide-react";
+
+export function ReceiptsCell({
+  receipts,
+  onUpdate,
+}: {
+  receipts: number;
+  onUpdate: (v: number) => void;
+}) {
+  return (
+    <td className="p-1">
+      <Input
+        type="number"
+        min={0}
+        value={receipts}
+        onChange={(e) => onUpdate(Number(e.target.value))}
+        className="h-8 text-xs"
+      />
+    </td>
+  );
+}
+
+export function DeleteRowCell({ onRemove }: { onRemove: () => void }) {
+  return (
+    <td className="p-1 text-center">
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-red-600 hover:text-red-700"
+        title="刪除此列"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </td>
+  );
+}
 
 export const SELECT_CLASS =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs";

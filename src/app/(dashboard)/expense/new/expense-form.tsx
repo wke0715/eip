@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition, useMemo, useRef } from "react";
+import { useState, useTransition, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { submitExpenseReport } from "@/actions/expense";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import {
   calcExpenseItemSubtotal,
   type ExpenseItemInput,
@@ -14,6 +14,8 @@ import { parseExpenseOnly } from "@/lib/excel/expense-parser";
 import {
   ExpenseFormShell,
   SELECT_CLASS,
+  ReceiptsCell,
+  DeleteRowCell,
 } from "@/components/shared/expense-form-shell";
 
 const WORK_CATEGORY_OPTIONS = [
@@ -132,14 +134,14 @@ export function ExpenseForm({
     );
   }
 
-  function addRow() {
+  const addRow = useCallback(() => {
     const base = `${year}-${String(month).padStart(2, "0")}-01`;
     setRows((prev) => [...prev, { key: nextKey.current++, item: emptyItem(base) }]);
-  }
+  }, [year, month]);
 
-  function removeRow(idx: number) {
+  const removeRow = useCallback((idx: number) => {
     setRows((prev) => prev.filter((_, i) => i !== idx));
-  }
+  }, []);
 
   async function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -429,27 +431,11 @@ export function ExpenseForm({
                     : calcExpenseItemSubtotal(it)
                   ).toLocaleString("zh-TW")}
                 </td>
-                <td className="p-1">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={it.receipts}
-                    onChange={(e) =>
-                      updateItem(idx, { receipts: Number(e.target.value) })
-                    }
-                    className="h-8 text-xs"
-                  />
-                </td>
-                <td className="p-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(idx)}
-                    className="text-red-600 hover:text-red-700"
-                    title="刪除此列"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+                <ReceiptsCell
+                  receipts={it.receipts}
+                  onUpdate={(v) => updateItem(idx, { receipts: v })}
+                />
+                <DeleteRowCell onRemove={() => removeRow(idx)} />
               </tr>
             ))}
             {rows.length === 0 && (
