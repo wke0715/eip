@@ -7,7 +7,9 @@ import {
 } from "./ics";
 
 async function getTransporter() {
-  const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
+  const config = await prisma.smtpConfig.findFirst({
+    where: { isActive: true },
+  });
   if (!config) throw new Error("尚未設定 SMTP");
 
   const nodemailer = await import("nodemailer");
@@ -47,8 +49,7 @@ function formatTaipeiDate(date: Date): string {
   return `${y}/${m}/${d}`;
 }
 
-export async function sendMeetingBookingMail(input: BookingMailInput) {
-  // 收件人 = 發起者 + 與會人（去除重複 email）
+function buildRecipients(input: BookingMailInput) {
   const allEmails = new Set<string>();
   const recipients: Array<{ name: string | null; email: string }> = [];
   for (const person of [input.booker, ...input.attendees]) {
@@ -57,19 +58,28 @@ export async function sendMeetingBookingMail(input: BookingMailInput) {
       recipients.push(person);
     }
   }
-  if (recipients.length === 0) return;
+  return recipients;
+}
 
-  const { transporter, from } = await getTransporter();
-
+function buildMailContext(input: BookingMailInput) {
   const locationLabel = input.roomLocation
     ? `${input.roomName}（${input.roomLocation}）`
     : input.roomName;
-
   const dateStr = formatTaipeiDate(input.date);
   const timeRange = `${input.startTime} – ${input.endTime}`;
   const attendeesText = input.attendees
     .map((a) => a.name ?? a.email)
     .join("、");
+  return { locationLabel, dateStr, timeRange, attendeesText };
+}
+
+export async function sendMeetingBookingMail(input: BookingMailInput) {
+  const recipients = buildRecipients(input);
+  if (recipients.length === 0) return;
+
+  const { transporter, from } = await getTransporter();
+  const { locationLabel, dateStr, timeRange, attendeesText } =
+    buildMailContext(input);
 
   const calendarEvent: CalendarEventInput = {
     uid: `${input.bookingId}@eip`,
@@ -145,28 +155,12 @@ export interface CancelMailInput extends BookingMailInput {
 }
 
 export async function sendMeetingCancelMail(input: CancelMailInput) {
-  // 收件人 = 發起者 + 與會人（去除重複 email）
-  const allEmails = new Set<string>();
-  const recipients: Array<{ name: string | null; email: string }> = [];
-  for (const person of [input.booker, ...input.attendees]) {
-    if (person.email && !allEmails.has(person.email)) {
-      allEmails.add(person.email);
-      recipients.push(person);
-    }
-  }
+  const recipients = buildRecipients(input);
   if (recipients.length === 0) return;
 
   const { transporter, from } = await getTransporter();
-
-  const locationLabel = input.roomLocation
-    ? `${input.roomName}（${input.roomLocation}）`
-    : input.roomName;
-
-  const dateStr = formatTaipeiDate(input.date);
-  const timeRange = `${input.startTime} – ${input.endTime}`;
-  const attendeesText = input.attendees
-    .map((a) => a.name ?? a.email)
-    .join("、");
+  const { locationLabel, dateStr, timeRange, attendeesText } =
+    buildMailContext(input);
 
   const cancelledByLabel = input.cancelledByAdmin
     ? `${input.cancelledBy.name ?? input.cancelledBy.email}（管理員）`

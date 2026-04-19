@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAs } from "./helpers/auth";
+import { fillLeaveForm, submitLeave } from "./helpers/leave";
 
 test.describe("請假單", () => {
   test.beforeEach(async ({ context }) => {
@@ -40,10 +41,12 @@ test.describe("請假單", () => {
 
   test("結束日期早於起始日期顯示錯誤", async ({ page }) => {
     await page.goto("/leave/new");
-    await page.getByLabel("假別").selectOption({ label: "特休" });
-    await page.getByLabel("起始日期").fill("2026-05-10");
-    await page.getByLabel("結束日期").fill("2026-05-09");
-    await page.getByLabel("請假事由").fill("測試錯誤情境");
+    await fillLeaveForm(page, {
+      leaveType: "特休",
+      startDate: "2026-05-10",
+      endDate: "2026-05-09",
+      reason: "測試錯誤情境",
+    });
     await page.getByRole("button", { name: "送出請假單" }).click();
     await expect(page.getByText("結束日期不能早於起始日期")).toBeVisible();
   });
@@ -57,12 +60,12 @@ test.describe("請假單", () => {
   });
 
   test("成功送出後跳回列表，且出現新紀錄", async ({ page }) => {
-    await page.goto("/leave/new");
-    await page.getByLabel("假別").selectOption({ label: "事假" });
-    await page.getByLabel("起始日期").fill("2026-06-01");
-    await page.getByLabel("結束日期").fill("2026-06-01");
-    await page.getByLabel("請假事由").fill("E2E 測試請假單");
-    await page.getByRole("button", { name: "送出請假單" }).click();
+    await submitLeave(page, {
+      leaveType: "事假",
+      startDate: "2026-06-01",
+      endDate: "2026-06-01",
+      reason: "E2E 測試請假單",
+    });
 
     await expect(page).toHaveURL(/\/leave$/);
     await expect(page.getByRole("cell", { name: "事假" }).first()).toBeVisible();
@@ -70,12 +73,12 @@ test.describe("請假單", () => {
 
   test("列表頁顯示請假紀錄表格欄位", async ({ page }) => {
     // 先確保有資料
-    await page.goto("/leave/new");
-    await page.getByLabel("假別").selectOption({ label: "病假" });
-    await page.getByLabel("起始日期").fill("2026-07-01");
-    await page.getByLabel("結束日期").fill("2026-07-02");
-    await page.getByLabel("請假事由").fill("表格欄位測試");
-    await page.getByRole("button", { name: "送出請假單" }).click();
+    await submitLeave(page, {
+      leaveType: "病假",
+      startDate: "2026-07-01",
+      endDate: "2026-07-02",
+      reason: "表格欄位測試",
+    });
     await expect(page).toHaveURL(/\/leave$/);
 
     await expect(page.getByRole("columnheader", { name: "表單類型" })).toBeVisible();
