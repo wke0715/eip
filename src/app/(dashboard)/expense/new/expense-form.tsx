@@ -3,21 +3,18 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { submitExpenseReport } from "@/actions/expense";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Upload } from "lucide-react";
-import { ErrorDialog } from "@/components/shared/error-dialog";
-import { AttachmentInput } from "@/components/shared/attachment-input";
 import {
   calcExpenseItemSubtotal,
   type ExpenseItemInput,
 } from "@/lib/validators/expense";
 import { parseExpenseOnly } from "@/lib/excel/expense-parser";
-
-const selectClass =
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs";
+import {
+  ExpenseFormShell,
+  SELECT_CLASS,
+} from "@/components/shared/expense-form-shell";
 
 const WORK_CATEGORY_OPTIONS = [
   { value: "S", label: "S 業務" },
@@ -98,7 +95,11 @@ export function ExpenseForm({
   const [items, setItems] = useState<ExpenseItemInput[]>(
     defaultValues.items.length > 0
       ? defaultValues.items
-      : [emptyItem(`${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`)],
+      : [
+          emptyItem(
+            `${defaultValues.year}-${String(defaultValues.month).padStart(2, "0")}-01`,
+          ),
+        ],
   );
 
   const totals = useMemo(() => {
@@ -176,333 +177,284 @@ export function ExpenseForm({
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form action={handleSubmit} className="space-y-4">
-          {/* 基本資訊 */}
-          <div className="grid grid-cols-4 gap-3">
-            <div className="space-y-2">
-              <Label>表單編號</Label>
-              <Input
-                value={defaultValues.formNumber ?? ""}
-                placeholder="送出後自動產生"
-                readOnly
-                disabled
-                className="bg-muted text-muted-foreground"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="year">年度</Label>
-              <Input
-                id="year"
-                name="year"
-                type="number"
-                required
-                min={2000}
-                max={2100}
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="month">月份</Label>
-              <select
-                id="month"
-                name="month"
-                required
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                className={selectClass}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {m} 月
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>總金額 / 單據數</Label>
-              <Input
-                value={`$${totals.amount.toLocaleString("zh-TW")} / ${totals.receipts}`}
-                readOnly
-                disabled
-                className="bg-muted text-muted-foreground"
-              />
-            </div>
-          </div>
+    <ExpenseFormShell
+      formNumber={defaultValues.formNumber}
+      year={year}
+      month={month}
+      onYearChange={setYear}
+      onMonthChange={setMonth}
+      summaryLabel="總金額 / 單據數"
+      summaryValue={`$${totals.amount.toLocaleString("zh-TW")} / ${totals.receipts}`}
+      existingAttachmentName={defaultValues.existingAttachmentName}
+      submissionId={defaultValues.submissionId}
+      maxSizeMb={defaultValues.maxSizeMb}
+      onSubmit={handleSubmit}
+      isPending={isPending}
+      hasItems={items.length > 0}
+      submitLabel={submitLabel}
+      error={error}
+      onErrorClose={() => setError(null)}
+    >
+      <div className="flex items-center justify-between pt-2">
+        <h3 className="font-semibold">明細</h3>
+        <div className="flex gap-2">
+          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-md border px-3 h-9 text-sm hover:bg-muted">
+            <Upload className="h-4 w-4" />
+            匯入 Excel
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileImport}
+            />
+          </label>
+          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+            <Plus className="h-3 w-3 mr-1" />
+            新增一列
+          </Button>
+        </div>
+      </div>
 
-          <AttachmentInput
-            currentFileName={defaultValues.existingAttachmentName}
-            submissionId={defaultValues.submissionId}
-            maxSizeMb={defaultValues.maxSizeMb}
-          />
-
-          {/* 匯入 + 新增 */}
-          <div className="flex items-center justify-between pt-2">
-            <h3 className="font-semibold">明細</h3>
-            <div className="flex gap-2">
-              <label
-                className={
-                  "inline-flex items-center gap-1.5 cursor-pointer rounded-md border px-3 h-9 text-sm hover:bg-muted"
-                }
-              >
-                <Upload className="h-4 w-4" />
-                匯入 Excel
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={handleFileImport}
-                />
-              </label>
-              <Button type="button" variant="outline" size="sm" onClick={addRow}>
-                <Plus className="h-3 w-3 mr-1" />
-                新增一列
-              </Button>
-            </div>
-          </div>
-
-          {/* 明細表 */}
-          <div className="border rounded-md overflow-x-auto">
-            <table className="min-w-max text-xs">
-              <thead className="bg-muted">
-                <tr className="text-left">
-                  <th className="p-2 min-w-[128px]">日期</th>
-                  <th className="p-2 min-w-[96px]">類別</th>
-                  <th className="p-2 min-w-[320px]">工作項目/起訖地點</th>
-                  <th className="p-2 min-w-[96px]">私車補貼</th>
-                  <th className="p-2 min-w-[96px]">停車費</th>
-                  <th className="p-2 min-w-[96px]">ETC</th>
-                  <th className="p-2 min-w-[96px]">油資</th>
-                  <th className="p-2 min-w-[96px]">交通類</th>
-                  <th className="p-2 min-w-[96px]">交通費</th>
-                  <th className="p-2 min-w-[96px]">膳食類</th>
-                  <th className="p-2 min-w-[96px]">膳食費</th>
-                  <th className="p-2 min-w-[96px]">其他類</th>
-                  <th className="p-2 min-w-[96px]">其他費</th>
-                  <th className="p-2 min-w-[96px]">小計</th>
-                  <th className="p-2 min-w-[80px]">單據</th>
-                  <th className="p-2 min-w-[40px]"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it, idx) => (
-                  <tr key={idx} className="border-t">
-                    <td className="p-1">
-                      <Input
-                        type="date"
-                        value={it.date}
-                        onChange={(e) => updateItem(idx, { date: e.target.value })}
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <select
-                        value={it.workCategory}
-                        onChange={(e) =>
-                          updateItem(idx, {
-                            workCategory: e.target.value as ExpenseItemInput["workCategory"],
-                          })
-                        }
-                        className={selectClass}
-                      >
-                        {WORK_CATEGORY_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        value={it.workDetail}
-                        onChange={(e) =>
-                          updateItem(idx, { workDetail: e.target.value })
-                        }
-                        placeholder="如：客戶_ABC 台北→台中"
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.mileageSubsidy}
-                        onChange={(e) =>
-                          updateItem(idx, { mileageSubsidy: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.parkingFee}
-                        onChange={(e) =>
-                          updateItem(idx, { parkingFee: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.etcFee}
-                        onChange={(e) =>
-                          updateItem(idx, { etcFee: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.gasFee}
-                        onChange={(e) =>
-                          updateItem(idx, { gasFee: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <select
-                        value={it.transportType ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, {
-                            transportType:
-                              (e.target.value || null) as ExpenseItemInput["transportType"],
-                          })
-                        }
-                        className={selectClass}
-                      >
-                        {TRANSPORT_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.transportAmount}
-                        onChange={(e) =>
-                          updateItem(idx, { transportAmount: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <select
-                        value={it.mealType ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, {
-                            mealType: (e.target.value || null) as ExpenseItemInput["mealType"],
-                          })
-                        }
-                        className={selectClass}
-                      >
-                        {MEAL_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.mealAmount}
-                        onChange={(e) =>
-                          updateItem(idx, { mealAmount: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1">
-                      <select
-                        value={it.otherKind ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, {
-                            otherKind:
-                              (e.target.value || null) as ExpenseItemInput["otherKind"],
-                          })
-                        }
-                        className={selectClass}
-                      >
-                        {OTHER_KIND_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.otherAmount}
-                        onChange={(e) =>
-                          updateItem(idx, { otherAmount: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1 text-right font-medium">
-                      ${(it.subtotal > 0 ? it.subtotal : calcExpenseItemSubtotal(it)).toLocaleString("zh-TW")}
-                    </td>
-                    <td className="p-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.receipts}
-                        onChange={(e) =>
-                          updateItem(idx, { receipts: Number(e.target.value) })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </td>
-                    <td className="p-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(idx)}
-                        className="text-red-600 hover:text-red-700"
-                        title="刪除此列"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {items.length === 0 && (
-                  <tr>
-                    <td colSpan={16} className="p-4 text-center text-muted-foreground">
-                      尚無明細，請新增或匯入 Excel
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <ErrorDialog message={error} onClose={() => setError(null)} />
-
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" disabled={isPending || items.length === 0}>
-              {isPending ? "送出中..." : submitLabel}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()}>
-              取消
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+      <div className="border rounded-md overflow-x-auto">
+        <table className="min-w-max text-xs">
+          <thead className="bg-muted">
+            <tr className="text-left">
+              <th className="p-2 min-w-[128px]">日期</th>
+              <th className="p-2 min-w-[96px]">類別</th>
+              <th className="p-2 min-w-[320px]">工作項目/起訖地點</th>
+              <th className="p-2 min-w-[96px]">私車補貼</th>
+              <th className="p-2 min-w-[96px]">停車費</th>
+              <th className="p-2 min-w-[96px]">ETC</th>
+              <th className="p-2 min-w-[96px]">油資</th>
+              <th className="p-2 min-w-[96px]">交通類</th>
+              <th className="p-2 min-w-[96px]">交通費</th>
+              <th className="p-2 min-w-[96px]">膳食類</th>
+              <th className="p-2 min-w-[96px]">膳食費</th>
+              <th className="p-2 min-w-[96px]">其他類</th>
+              <th className="p-2 min-w-[96px]">其他費</th>
+              <th className="p-2 min-w-[96px]">小計</th>
+              <th className="p-2 min-w-[80px]">單據</th>
+              <th className="p-2 min-w-[40px]"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, idx) => (
+              <tr key={idx} className="border-t">
+                <td className="p-1">
+                  <Input
+                    type="date"
+                    value={it.date}
+                    onChange={(e) => updateItem(idx, { date: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <select
+                    value={it.workCategory}
+                    onChange={(e) =>
+                      updateItem(idx, {
+                        workCategory: e.target
+                          .value as ExpenseItemInput["workCategory"],
+                      })
+                    }
+                    className={SELECT_CLASS}
+                  >
+                    {WORK_CATEGORY_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="p-1">
+                  <Input
+                    value={it.workDetail}
+                    onChange={(e) =>
+                      updateItem(idx, { workDetail: e.target.value })
+                    }
+                    placeholder="如：客戶_ABC 台北→台中"
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.mileageSubsidy}
+                    onChange={(e) =>
+                      updateItem(idx, {
+                        mileageSubsidy: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.parkingFee}
+                    onChange={(e) =>
+                      updateItem(idx, { parkingFee: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.etcFee}
+                    onChange={(e) =>
+                      updateItem(idx, { etcFee: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.gasFee}
+                    onChange={(e) =>
+                      updateItem(idx, { gasFee: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <select
+                    value={it.transportType ?? ""}
+                    onChange={(e) =>
+                      updateItem(idx, {
+                        transportType:
+                          (e.target.value ||
+                            null) as ExpenseItemInput["transportType"],
+                      })
+                    }
+                    className={SELECT_CLASS}
+                  >
+                    {TRANSPORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.transportAmount}
+                    onChange={(e) =>
+                      updateItem(idx, {
+                        transportAmount: Number(e.target.value),
+                      })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <select
+                    value={it.mealType ?? ""}
+                    onChange={(e) =>
+                      updateItem(idx, {
+                        mealType: (e.target.value ||
+                          null) as ExpenseItemInput["mealType"],
+                      })
+                    }
+                    className={SELECT_CLASS}
+                  >
+                    {MEAL_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.mealAmount}
+                    onChange={(e) =>
+                      updateItem(idx, { mealAmount: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1">
+                  <select
+                    value={it.otherKind ?? ""}
+                    onChange={(e) =>
+                      updateItem(idx, {
+                        otherKind: (e.target.value ||
+                          null) as ExpenseItemInput["otherKind"],
+                      })
+                    }
+                    className={SELECT_CLASS}
+                  >
+                    {OTHER_KIND_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.otherAmount}
+                    onChange={(e) =>
+                      updateItem(idx, { otherAmount: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1 text-right font-medium">
+                  $
+                  {(it.subtotal > 0
+                    ? it.subtotal
+                    : calcExpenseItemSubtotal(it)
+                  ).toLocaleString("zh-TW")}
+                </td>
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={it.receipts}
+                    onChange={(e) =>
+                      updateItem(idx, { receipts: Number(e.target.value) })
+                    }
+                    className="h-8 text-xs"
+                  />
+                </td>
+                <td className="p-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => removeRow(idx)}
+                    className="text-red-600 hover:text-red-700"
+                    title="刪除此列"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td
+                  colSpan={16}
+                  className="p-4 text-center text-muted-foreground"
+                >
+                  尚無明細，請新增或匯入 Excel
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </ExpenseFormShell>
   );
 }
