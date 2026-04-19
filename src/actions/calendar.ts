@@ -33,27 +33,7 @@ export async function importCalendarFromExcel(
     const { date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber } =
       parsed.data;
 
-    await prisma.calendarEvent.upsert({
-      where: { date_personName: { date: new Date(date), personName } },
-      update: {
-        amTask: amTask ?? null,
-        pmTask: pmTask ?? null,
-        fullDayTask: fullDayTask ?? null,
-        status: status as CalendarEventStatus,
-        isHoliday: isHoliday ?? false,
-        weekNumber: weekNumber ?? null,
-      },
-      create: {
-        date: new Date(date),
-        personName,
-        amTask: amTask ?? null,
-        pmTask: pmTask ?? null,
-        fullDayTask: fullDayTask ?? null,
-        status: status as CalendarEventStatus,
-        isHoliday: isHoliday ?? false,
-        weekNumber: weekNumber ?? null,
-      },
-    });
+    await _upsertEvent(date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber);
     imported++;
   }
 
@@ -127,26 +107,18 @@ export async function getCalendarPersonNames(): Promise<string[]> {
   return result.map((r) => r.personName);
 }
 
-// ─── 單筆 upsert（手動編輯用）───
+// ─── 內部 helper ───
 
-export async function upsertCalendarEvent(input: {
-  date: string;
-  personName: string;
-  amTask?: string | null;
-  pmTask?: string | null;
-  fullDayTask?: string | null;
-  status?: CalendarEventStatus;
-  isHoliday?: boolean;
-  weekNumber?: number | null;
-}) {
-  const parsed = CalendarEventSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0].message };
-  }
-
-  const { date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber } =
-    parsed.data;
-
+async function _upsertEvent(
+  date: string,
+  personName: string,
+  amTask: string | null | undefined,
+  pmTask: string | null | undefined,
+  fullDayTask: string | null | undefined,
+  status: string,
+  isHoliday: boolean | undefined,
+  weekNumber: number | null | undefined,
+) {
   await prisma.calendarEvent.upsert({
     where: { date_personName: { date: new Date(date), personName } },
     update: {
@@ -168,6 +140,29 @@ export async function upsertCalendarEvent(input: {
       weekNumber: weekNumber ?? null,
     },
   });
+}
+
+// ─── 單筆 upsert（手動編輯用）───
+
+export async function upsertCalendarEvent(input: {
+  date: string;
+  personName: string;
+  amTask?: string | null;
+  pmTask?: string | null;
+  fullDayTask?: string | null;
+  status?: CalendarEventStatus;
+  isHoliday?: boolean;
+  weekNumber?: number | null;
+}) {
+  const parsed = CalendarEventSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0].message };
+  }
+
+  const { date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber } =
+    parsed.data;
+
+  await _upsertEvent(date, personName, amTask, pmTask, fullDayTask, status, isHoliday, weekNumber);
 
   revalidatePath("/calendar");
   return { success: true, message: "儲存成功" };

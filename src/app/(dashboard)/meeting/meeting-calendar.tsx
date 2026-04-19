@@ -255,25 +255,24 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
               const todayCell = day ? isToday(year, month, day) : false;
               const MAX_VISIBLE = 3;
 
+              if (!day) {
+                return <div key={`empty-${i}`} className="min-h-[120px] border-b border-r last:border-r-0 bg-muted/10 transition-colors" />;
+              }
+
               return (
-                <div
-                  key={day ? dayKey! : `empty-${i}`}
-                  role={day ? "button" : undefined}
-                  tabIndex={day ? 0 : -1}
-                  className={cn(
-                    "min-h-[120px] border-b border-r last:border-r-0 p-1 transition-colors",
-                    day ? "cursor-pointer hover:bg-muted/20" : "bg-muted/10",
-                  )}
-                  onClick={() => day && dayKey && openNewBooking(dayKey)}
+                <button
+                  type="button"
+                  key={dayKey!}
+                  className="min-h-[120px] border-b border-r last:border-r-0 p-1 transition-colors cursor-pointer hover:bg-muted/20 text-left w-full"
+                  onClick={() => dayKey && openNewBooking(dayKey)}
                   onKeyDown={(e) => {
-                    if (day && dayKey && (e.key === "Enter" || e.key === " ")) {
+                    if (dayKey && (e.key === "Enter" || e.key === " ")) {
                       e.preventDefault();
                       openNewBooking(dayKey);
                     }
                   }}
                 >
-                  {day && (
-                    <>
+                  <>
                       <div className={cn(
                         "w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-0.5 mx-auto",
                         todayCell && "bg-primary text-primary-foreground",
@@ -310,9 +309,8 @@ export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props)
                           </div>
                         )}
                       </div>
-                    </>
-                  )}
-                </div>
+                  </>
+                </button>
               );
             })}
           </div>

@@ -107,6 +107,8 @@ export function CalendarEditDialog({ target, personNames, onClose, onSaved }: Pr
     ? target.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1 年 $2 月 $3 日")
     : "";
 
+  const saveButtonLabel = isPending ? "儲存中..." : isNew ? "新增" : "儲存";
+
   return (
     <Dialog open={!!target} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-md">
@@ -204,7 +206,7 @@ export function CalendarEditDialog({ target, personNames, onClose, onSaved }: Pr
               取消
             </Button>
             <Button onClick={handleSave} disabled={isPending || (isNew && !personName)}>
-              {isPending ? "儲存中..." : isNew ? "新增" : "儲存"}
+              {saveButtonLabel}
             </Button>
           </div>
         </DialogFooter>

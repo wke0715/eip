@@ -542,11 +542,7 @@ export function SubmissionDetailModal({
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {showApprovalButtons && data?.status === "PENDING" && (
-            <div
-              className="flex gap-2 sm:mr-auto"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
+            <div className="flex gap-2 sm:mr-auto">
               <ApprovalButtons
                 submissionId={data.id}
                 onSuccess={() => onOpenChange(false)}

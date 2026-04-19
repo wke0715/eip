@@ -69,7 +69,7 @@ export function ImportDialog({ open, onOpenChange, onSuccess }: Props) {
           </p>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">選擇檔案</label>
+            <span className="text-sm font-medium">選擇檔案</span>
             <div className="flex items-center gap-2">
               <input
                 ref={fileRef}

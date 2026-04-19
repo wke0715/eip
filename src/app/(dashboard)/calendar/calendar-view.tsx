@@ -275,6 +275,8 @@ export function CalendarView({ initialPersonNames }: Props) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const weekNumStr = weekNum ? String(weekNum).padStart(2, "0") : "—";
+
   return (
     <div className="space-y-4">
 
@@ -339,7 +341,7 @@ export function CalendarView({ initialPersonNames }: Props) {
         <h2 className="text-xl font-semibold">
           {viewMode === "month"
             ? `${year} 年 ${MONTH_ZH[month - 1]}`
-            : `${year} 年 W${weekNum ? String(weekNum).padStart(2, "0") : "—"}（${MONTH_ZH[weekDays[0].getMonth()]} ${weekDays[0].getDate()} 日 ～ ${MONTH_ZH[weekDays[6].getMonth()]} ${weekDays[6].getDate()} 日）`
+            : `${year} 年 W${weekNumStr}（${MONTH_ZH[weekDays[0].getMonth()]} ${weekDays[0].getDate()} 日 ～ ${MONTH_ZH[weekDays[6].getMonth()]} ${weekDays[6].getDate()} 日）`
           }
         </h2>
       </div>
@@ -402,11 +404,14 @@ export function CalendarView({ initialPersonNames }: Props) {
                 })),
               ];
 
+              if (!day) {
+                return <div key={`empty-${i}`} className="min-h-[110px] border-b border-r last:border-r-0 bg-muted/10" />;
+              }
+
               return (
-                <div
-                  key={dayKey ?? `empty-${i}`}
-                  role={day ? "button" : undefined}
-                  tabIndex={day ? 0 : -1}
+                <button
+                  type="button"
+                  key={dayKey!}
                   onClick={() => { if (dayKey) openNewForDay(dayKey); }}
                   onKeyDown={(e) => {
                     if (dayKey && (e.key === "Enter" || e.key === " ")) {
@@ -415,23 +420,20 @@ export function CalendarView({ initialPersonNames }: Props) {
                     }
                   }}
                   className={cn(
-                    "min-h-[110px] border-b border-r last:border-r-0 p-1",
-                    day && "cursor-pointer hover:bg-muted/10",
-                    !day && "bg-muted/10",
-                    hasHoliday && day && "bg-red-50/40",
+                    "min-h-[110px] border-b border-r last:border-r-0 p-1 text-left w-full cursor-pointer hover:bg-muted/10",
+                    hasHoliday && "bg-red-50/40",
                   )}
                 >
-                  {day && (
-                    <>
-                      <div className={cn(
-                        "w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-0.5 mx-auto transition-all",
-                        todayCell && "bg-primary text-primary-foreground",
-                        todayCell && highlightToday && "ring-4 ring-primary/40 scale-125",
-                        !todayCell && colIdx === 0 && "text-red-500",
-                        !todayCell && colIdx === 6 && "text-blue-500",
-                      )}>
-                        {day.getDate()}
-                      </div>
+                  <>
+                    <div className={cn(
+                      "w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-0.5 mx-auto transition-all",
+                      todayCell && "bg-primary text-primary-foreground",
+                      todayCell && highlightToday && "ring-4 ring-primary/40 scale-125",
+                      !todayCell && colIdx === 0 && "text-red-500",
+                      !todayCell && colIdx === 6 && "text-blue-500",
+                    )}>
+                      {day.getDate()}
+                    </div>
 
                       <div className="space-y-0.5">
                         {chips.map(chip => {
@@ -466,9 +468,8 @@ export function CalendarView({ initialPersonNames }: Props) {
                           );
                         })}
                       </div>
-                    </>
-                  )}
-                </div>
+                  </>
+                </button>
               );
             })}
           </div>
