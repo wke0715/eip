@@ -259,26 +259,22 @@ export async function updateSmtpConfig(formData: FormData) {
 export async function testSmtpConnection() {
   const session = await requireAdmin();
 
+  const gmailUser = process.env.GMAIL_USER;
+  if (!gmailUser) return { error: "未設定 GMAIL_USER 環境變數" };
+
   const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
-  if (!config) return { error: "尚未設定寄件人資訊，請先儲存設定" };
-
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { error: "未設定 RESEND_API_KEY 環境變數" };
-
-  const { Resend } = await import("resend");
-  const resend = new Resend(apiKey);
-
+  const senderName = config?.senderName ?? "企盉 EIP";
   const to = session.user.email!;
 
   try {
-    const result = await resend.emails.send({
-      from: `${config.senderName} <${config.senderEmail}>`,
-      to,
+    const { sendViaGmail } = await import("@/lib/gmail");
+    await sendViaGmail({
+      from: `${senderName} <${gmailUser}>`,
+      to: [to],
       subject: "企盉 EIP — 郵件功能測試",
       text: "這是一封郵件功能測試信，收到代表設定正確。",
       html: "<p>這是一封<strong>郵件功能測試信</strong>，收到代表設定正確。</p>",
     });
-    if (result.error) return { error: `發送失敗：${result.error.message}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { error: `發送失敗：${msg}` };

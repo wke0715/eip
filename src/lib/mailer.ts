@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { sendViaGmail } from "./gmail";
 import {
   generateIcsContent,
   buildGoogleCalendarUrl,
@@ -9,38 +10,10 @@ async function getSenderConfig() {
   const config = await prisma.smtpConfig.findFirst({
     where: { isActive: true },
   });
-  if (!config) throw new Error("尚未設定寄件人資訊");
-  return { from: `${config.senderName} <${config.senderEmail}>` };
-}
-
-async function sendEmail(params: {
-  from: string;
-  to: string[];
-  subject: string;
-  text: string;
-  html: string;
-  icsContent?: string;
-}) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("未設定 RESEND_API_KEY 環境變數");
-
-  const { Resend } = await import("resend");
-  const resend = new Resend(apiKey);
-
-  const attachments = params.icsContent
-    ? [{ filename: "meeting.ics", content: Buffer.from(params.icsContent) }]
-    : [];
-
-  const result = await resend.emails.send({
-    from: params.from,
-    to: params.to,
-    subject: params.subject,
-    text: params.text,
-    html: params.html,
-    attachments,
-  });
-
-  if (result.error) throw new Error(result.error.message);
+  const gmailUser = process.env.GMAIL_USER;
+  if (!gmailUser) throw new Error("未設定 GMAIL_USER 環境變數");
+  const senderName = config?.senderName ?? "企盉 EIP";
+  return { from: `${senderName} <${gmailUser}>` };
 }
 
 export interface BookingMailInput {
@@ -146,7 +119,7 @@ export async function sendMeetingBookingMail(input: BookingMailInput) {
     </div>
   `;
 
-  await sendEmail({
+  await sendViaGmail({
     from,
     to: recipients.map((a) => a.email),
     subject: `[會議邀請] ${input.subject}（${dateStr} ${timeRange}）`,
@@ -224,7 +197,7 @@ export async function sendMeetingCancelMail(input: CancelMailInput) {
     </div>
   `;
 
-  await sendEmail({
+  await sendViaGmail({
     from,
     to: recipients.map((a) => a.email),
     subject: `[已取消] ${input.subject}（${dateStr} ${timeRange}）`,

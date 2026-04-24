@@ -46,7 +46,10 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
     startTransition(async () => {
       try {
         const result = await testSmtpConnection();
-        if (result.error) { setError(result.error); return; }
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
         setSuccess(result.message ?? "");
       } catch (e) {
         setError(e instanceof Error ? e.message : "測試失敗");
@@ -61,8 +64,11 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-sm text-muted-foreground">
-          郵件透過 Resend 發送，API Key 請設定於 Railway 環境變數{" "}
-          <code className="rounded bg-muted px-1">RESEND_API_KEY</code>。
+          郵件透過 Gmail API 發送，請在 Railway 環境變數設定{" "}
+          <code className="rounded bg-muted px-1">GMAIL_USER</code>、
+          <code className="rounded bg-muted px-1">GMAIL_CLIENT_ID</code>、
+          <code className="rounded bg-muted px-1">GMAIL_CLIENT_SECRET</code>、
+          <code className="rounded bg-muted px-1">GMAIL_REFRESH_TOKEN</code>。
         </p>
         <form action={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
