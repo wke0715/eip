@@ -32,6 +32,10 @@ export async function GET(request: Request) {
   const authSecret =
     process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? "";
   const isHttps = new URL(request.url).protocol === "https:";
+  // Auth.js v5 在 HTTPS 環境使用 __Secure- 前綴的 cookie 名稱與 salt
+  const cookieName = isHttps
+    ? "__Secure-authjs.session-token"
+    : "authjs.session-token";
 
   const token = await encode({
     token: {
@@ -44,7 +48,7 @@ export async function GET(request: Request) {
     },
     secret: authSecret,
     maxAge: 60 * 60 * 8,
-    salt: "authjs.session-token",
+    salt: cookieName,
   });
 
   const publicBase =
@@ -52,7 +56,7 @@ export async function GET(request: Request) {
     process.env.AUTH_URL ??
     new URL(request.url).origin;
   const response = NextResponse.redirect(new URL("/", publicBase));
-  response.cookies.set("authjs.session-token", token, {
+  response.cookies.set(cookieName, token, {
     httpOnly: true,
     secure: isHttps,
     sameSite: "lax",
