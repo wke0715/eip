@@ -257,16 +257,16 @@ export async function updateSmtpConfig(formData: FormData) {
 }
 
 export async function testSmtpConnection() {
-  const session = await requireAdmin();
-
-  const gmailUser = process.env.GMAIL_USER;
-  if (!gmailUser) return { error: "未設定 GMAIL_USER 環境變數" };
-
-  const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
-  const senderName = config?.senderName ?? "企盉 EIP";
-  const to = session.user.email!;
-
   try {
+    const session = await requireAdmin();
+
+    const gmailUser = process.env.GMAIL_USER;
+    if (!gmailUser) return { error: "未設定 GMAIL_USER 環境變數" };
+
+    const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
+    const senderName = config?.senderName ?? "企盉 EIP";
+    const to = session.user.email!;
+
     const { sendViaGmail } = await import("@/lib/gmail");
     await sendViaGmail({
       from: `${senderName} <${gmailUser}>`,
@@ -275,12 +275,12 @@ export async function testSmtpConnection() {
       text: "這是一封郵件功能測試信，收到代表設定正確。",
       html: "<p>這是一封<strong>郵件功能測試信</strong>，收到代表設定正確。</p>",
     });
+
+    return { success: true, message: `測試信已寄送至 ${to}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { error: `發送失敗：${msg}` };
   }
-
-  return { success: true, message: `測試信已寄送至 ${to}` };
 }
 
 // ─── 會議室管理 ───
