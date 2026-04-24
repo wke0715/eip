@@ -297,17 +297,25 @@ export async function testSmtpConnection() {
       user: config.username,
       pass: decrypt(config.encryptedPassword),
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
   });
 
   const to = session.user.email!;
 
-  await transporter.sendMail({
-    from: `"${config.senderName}" <${config.senderEmail}>`,
-    to,
-    subject: "企盉 EIP — SMTP 測試信",
-    text: "這是一封 SMTP 連線測試信，收到代表設定正確。",
-    html: "<p>這是一封 <strong>SMTP 連線測試信</strong>，收到代表設定正確。</p>",
-  });
+  try {
+    await transporter.verify();
+    await transporter.sendMail({
+      from: `"${config.senderName}" <${config.senderEmail}>`,
+      to,
+      subject: "企盉 EIP — SMTP 測試信",
+      text: "這是一封 SMTP 連線測試信，收到代表設定正確。",
+      html: "<p>這是一封 <strong>SMTP 連線測試信</strong>，收到代表設定正確。</p>",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { error: `SMTP 錯誤：${msg}` };
+  }
 
   return { success: true, message: `測試信已寄送至 ${to}` };
 }
