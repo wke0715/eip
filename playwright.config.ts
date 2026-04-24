@@ -17,6 +17,11 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    // Railway 網路延遲較高，server action 需要更多時間
+    ...(isRemote && { actionTimeout: 15000 }),
+  },
+  expect: {
+    timeout: isRemote ? 15000 : 5000,
   },
   projects: [
     {

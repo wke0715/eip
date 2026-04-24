@@ -84,7 +84,8 @@ export function LeaveForm({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await submitAction(formData);
+        const res = await submitAction(formData);
+        const result = res as { error?: string } | null | undefined;
         if (result?.error) { setError(result.error); return; }
         router.push("/leave");
       } catch {
