@@ -47,7 +47,11 @@ export async function GET(request: Request) {
     salt: "authjs.session-token",
   });
 
-  const response = NextResponse.redirect(new URL("/", request.url));
+  const publicBase =
+    process.env.NEXTAUTH_URL ??
+    process.env.AUTH_URL ??
+    new URL(request.url).origin;
+  const response = NextResponse.redirect(new URL("/", publicBase));
   response.cookies.set("authjs.session-token", token, {
     httpOnly: true,
     secure: isHttps,
