@@ -279,6 +279,7 @@ export async function testSmtpConnection() {
     return { success: true, message: `測試信已寄送至 ${to}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    console.error("[testSmtpConnection] error:", msg, e);
     return { error: `發送失敗：${msg}` };
   }
 }
