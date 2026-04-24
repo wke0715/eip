@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.test" });
+dotenv.config({ path: ".env.railway-test", override: true });
 
 async function globalSetup() {
   const prisma = new PrismaClient();

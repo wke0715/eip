@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.test" });
+dotenv.config({ path: ".env.railway-test", override: true });
+
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+const isRemote = !!process.env.E2E_BASE_URL;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,7 +15,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : 2,
   reporter: "html",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
   },
   projects: [
@@ -20,9 +24,13 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-  },
+  ...(isRemote
+    ? {}
+    : {
+        webServer: {
+          command: "npm run dev",
+          url: "http://localhost:3000",
+          reuseExistingServer: !process.env.CI,
+        },
+      }),
 });

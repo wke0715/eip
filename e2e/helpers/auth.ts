@@ -7,13 +7,16 @@ const TEST_USER_IDS = {
 
 export async function loginAs(
   context: BrowserContext,
-  role: "ADMIN" | "USER" = "ADMIN"
+  role: "ADMIN" | "USER" = "ADMIN",
 ) {
   const userId = TEST_USER_IDS[role];
-  // 透過 dev-login API 讓 server 自行簽發 JWT，確保 secret 一致
-  // 且 DB 的 role 欄位與 JWT 一致，避免 jwt callback 覆蓋錯誤角色
   const page = await context.newPage();
-  await page.goto(`/api/dev-login?userId=${userId}`);
+  const e2eSecret = process.env.E2E_SECRET;
+  if (e2eSecret) {
+    await page.goto(`/api/e2e-login?secret=${e2eSecret}&userId=${userId}`);
+  } else {
+    await page.goto(`/api/dev-login?userId=${userId}`);
+  }
   await page.close();
 }
 
