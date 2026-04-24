@@ -84,10 +84,11 @@ export function LeaveForm({
     setError(null);
     startTransition(async () => {
       try {
-        await submitAction(formData);
+        const result = await submitAction(formData);
+        if (result?.error) { setError(result.error); return; }
         router.push("/leave");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "送出失敗");
+      } catch {
+        setError("送出失敗");
       }
     });
   }

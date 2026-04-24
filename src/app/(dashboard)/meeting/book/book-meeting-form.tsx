@@ -25,7 +25,13 @@ interface User {
 
 const timeSlots = generateTimeSlots();
 
-export function BookMeetingForm({ rooms, users }: { rooms: Room[]; users: User[] }) {
+export function BookMeetingForm({
+  rooms,
+  users,
+}: {
+  rooms: Room[];
+  users: User[];
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -34,10 +40,14 @@ export function BookMeetingForm({ rooms, users }: { rooms: Room[]; users: User[]
     setError(null);
     startTransition(async () => {
       try {
-        await bookMeetingRoom(formData);
+        const result = await bookMeetingRoom(formData);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         router.push("/meeting");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "預約失敗");
+      } catch {
+        setError("預約失敗");
       }
     });
   }

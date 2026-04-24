@@ -31,11 +31,15 @@ export function CreateUserDialog({ managers }: Props) {
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
-        await createUser(formData);
+        const result = await createUser(formData);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         setOpen(false);
         router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "新增失敗");
+      } catch {
+        setError("新增失敗");
       }
     });
   }

@@ -47,7 +47,7 @@ export async function createUser(formData: FormData) {
   const existing = await prisma.user.findUnique({
     where: { email: parsed.email },
   });
-  if (existing) throw new Error("此 Email 已存在");
+  if (existing) return { error: "此 Email 已存在" };
 
   await prisma.user.create({ data: parsed });
 
@@ -285,7 +285,7 @@ export async function testSmtpConnection() {
   const session = await requireAdmin();
 
   const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
-  if (!config) throw new Error("尚未設定 SMTP，請先儲存設定");
+  if (!config) return { error: "尚未設定 SMTP，請先儲存設定" };
 
   const nodemailer = await import("nodemailer");
 

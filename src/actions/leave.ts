@@ -28,7 +28,7 @@ function parseAndValidateLeaveForm(formData: FormData) {
     parsed = createLeaveRequestSchema.parse(raw);
   } catch (e) {
     if (e instanceof z.ZodError) {
-      throw new Error(e.issues.map((issue: z.ZodIssue) => issue.message).join("\n"));
+      return { error: e.issues.map((issue: z.ZodIssue) => issue.message).join("\n") };
     }
     throw e;
   }
@@ -36,10 +36,10 @@ function parseAndValidateLeaveForm(formData: FormData) {
   const startDateTime = new Date(`${parsed.startDate}T${parsed.startTime}:00+08:00`);
   const endDateTime = new Date(`${parsed.endDate}T${parsed.endTime}:00+08:00`);
 
-  if (endDateTime <= startDateTime) throw new Error("結束日期不能早於起始日期");
+  if (endDateTime <= startDateTime) return { error: "結束日期不能早於起始日期" };
 
   const hours = calculateLeaveHours(startDateTime, endDateTime);
-  if (hours <= 0) throw new Error("請假時數須大於 0");
+  if (hours <= 0) return { error: "請假時數須大於 0" };
 
   return { parsed, startDateTime, endDateTime, hours };
 }
@@ -71,7 +71,9 @@ export async function submitLeaveRequest(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("未登入");
 
-  const { parsed, startDateTime, endDateTime, hours } = parseAndValidateLeaveForm(formData);
+  const validation = parseAndValidateLeaveForm(formData);
+  if ("error" in validation) return validation;
+  const { parsed, startDateTime, endDateTime, hours } = validation;
 
   // 檢查是否與現有假單時段重疊（PENDING 或 APPROVED）
   const overlapping = await prisma.leaveRequest.findFirst({
@@ -84,7 +86,7 @@ export async function submitLeaveRequest(formData: FormData) {
       endDate: { gt: startDateTime },
     },
   });
-  if (overlapping) throw new Error("申請時段與現有假單重疊，請重新選擇時間");
+  if (overlapping) return { error: "申請時段與現有假單重疊，請重新選擇時間" };
 
   // 查詢全域簽核流程設定
   const workflowSteps = await prisma.workflowConfig.findMany({
@@ -180,8 +182,10 @@ export async function resubmitLeaveRequest(submissionId: string, formData: FormD
   if (submission.applicantId !== session.user.id) throw new Error("只能修改自己的申請");
   if (submission.status !== "REJECTED") throw new Error("只有被退件的表單可以重送");
 
-  const { parsed, startDateTime, endDateTime, hours } = parseAndValidateLeaveForm(formData);
-  if (hours <= 0) throw new Error("請假時數須大於 0");
+  const validation = parseAndValidateLeaveForm(formData);
+  if ("error" in validation) return validation;
+  const { parsed, startDateTime, endDateTime, hours } = validation;
+  if (hours <= 0) return { error: "請假時數須大於 0" };
 
   // 檢查是否與其他假單時段重疊（排除本次重送的那筆）
   const overlapping = await prisma.leaveRequest.findFirst({
@@ -195,7 +199,7 @@ export async function resubmitLeaveRequest(submissionId: string, formData: FormD
       endDate: { gt: startDateTime },
     },
   });
-  if (overlapping) throw new Error("申請時段與現有假單重疊，請重新選擇時間");
+  if (overlapping) return { error: "申請時段與現有假單重疊，請重新選擇時間" };
 
   const workflowSteps = await prisma.workflowConfig.findMany({
     where: { formType: "LEAVE" },

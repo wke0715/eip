@@ -84,11 +84,15 @@ export function MeetingBookingDialog({
       const formData = new FormData(e.currentTarget);
       startTransition(async () => {
         try {
-          await bookMeetingRoom(formData);
+          const result = await bookMeetingRoom(formData);
+          if (result?.error) {
+            setError(result.error);
+            return;
+          }
           onSaved();
           onClose();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "預約失敗");
+        } catch {
+          setError("預約失敗");
         }
       });
     }

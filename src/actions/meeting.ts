@@ -24,7 +24,7 @@ export async function bookMeetingRoom(formData: FormData) {
 
   // 檢查時段有效性
   if (parsed.startTime >= parsed.endTime) {
-    throw new Error("結束時間須晚於起始時間");
+    return { error: "結束時間須晚於起始時間" };
   }
 
   // 檢查時段衝突
@@ -41,7 +41,7 @@ export async function bookMeetingRoom(formData: FormData) {
   );
 
   if (hasConflict) {
-    throw new Error("該時段已被預約");
+    return { error: "該時段已被預約" };
   }
 
   // 查詢與會者

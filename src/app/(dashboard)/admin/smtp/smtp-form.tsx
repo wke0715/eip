@@ -56,9 +56,10 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
     startTransition(async () => {
       try {
         const result = await testSmtpConnection();
-        setSuccess(result.message);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "測試失敗");
+        if (result.error) { setError(result.error); return; }
+        setSuccess(result.message ?? "");
+      } catch {
+        setError("測試失敗");
       }
     });
   }
