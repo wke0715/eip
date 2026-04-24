@@ -10,7 +10,8 @@ export default auth((req) => {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/dev-login")
+    pathname.startsWith("/api/dev-login") ||
+    pathname.startsWith("/api/e2e-login")
   ) {
     return NextResponse.next();
   }
@@ -20,10 +21,7 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (
-    pathname.startsWith("/admin") &&
-    req.auth.user?.role !== "ADMIN"
-  ) {
+  if (pathname.startsWith("/admin") && req.auth.user?.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/forbidden", req.url));
   }
 
