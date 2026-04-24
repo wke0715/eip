@@ -8,12 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type SmtpConfig = {
-  host: string;
-  port: number;
-  username: string;
   senderName: string;
   senderEmail: string;
-  encryption: string;
 } | null;
 
 export function SmtpForm({ config }: { config: SmtpConfig }) {
@@ -21,19 +17,13 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // 用受控狀態管理欄位值，避免 Base UI FieldControl uncontrolled 警告
   const [fields, setFields] = useState({
-    host: config?.host ?? "",
-    port: String(config?.port ?? 587),
-    username: config?.username ?? "",
-    password: "",
     senderName: config?.senderName ?? "",
     senderEmail: config?.senderEmail ?? "",
-    encryption: config?.encryption ?? "TLS",
   });
 
   function setField(key: keyof typeof fields) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement>) =>
       setFields((prev) => ({ ...prev, [key]: e.target.value }));
   }
 
@@ -43,7 +33,7 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
     startTransition(async () => {
       try {
         await updateSmtpConfig(formData);
-        setSuccess("SMTP 設定已儲存");
+        setSuccess("設定已儲存");
       } catch (e) {
         setError(e instanceof Error ? e.message : "儲存失敗");
       }
@@ -67,60 +57,14 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">SMTP 設定</CardTitle>
+        <CardTitle className="text-base">郵件設定</CardTitle>
       </CardHeader>
       <CardContent>
+        <p className="mb-4 text-sm text-muted-foreground">
+          郵件透過 Resend 發送，API Key 請設定於 Railway 環境變數{" "}
+          <code className="rounded bg-muted px-1">RESEND_API_KEY</code>。
+        </p>
         <form action={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="host">SMTP Host</Label>
-              <Input
-                id="host"
-                name="host"
-                required
-                value={fields.host}
-                onChange={setField("host")}
-                placeholder="smtp.gmail.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="port">Port</Label>
-              <Input
-                id="port"
-                name="port"
-                type="number"
-                required
-                value={fields.port}
-                onChange={setField("port")}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">帳號</Label>
-              <Input
-                id="username"
-                name="username"
-                required
-                value={fields.username}
-                onChange={setField("username")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">密碼</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={fields.password}
-                onChange={setField("password")}
-                placeholder="每次儲存需重新輸入"
-              />
-            </div>
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="senderName">寄件人名稱</Label>
@@ -142,22 +86,9 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
                 required
                 value={fields.senderEmail}
                 onChange={setField("senderEmail")}
+                placeholder="noreply@yourdomain.com"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="encryption">加密方式</Label>
-            <select
-              id="encryption"
-              name="encryption"
-              value={fields.encryption}
-              onChange={setField("encryption")}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-            >
-              <option value="TLS">TLS</option>
-              <option value="SSL">SSL</option>
-            </select>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -165,7 +96,7 @@ export function SmtpForm({ config }: { config: SmtpConfig }) {
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={isPending}>
-              {isPending ? "儲存中..." : "儲存設定"}
+              {isPending ? "處理中..." : "儲存設定"}
             </Button>
             <Button
               type="button"

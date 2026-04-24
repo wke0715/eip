@@ -6,13 +6,8 @@ export const updateSystemSettingSchema = z.object({
 });
 
 export const smtpConfigSchema = z.object({
-  host: z.string().min(1, "請填寫 SMTP Host"),
-  port: z.coerce.number().int().min(1).max(65535),
-  username: z.string().min(1, "請填寫帳號"),
-  password: z.string().min(1, "請填寫密碼"),
   senderName: z.string().min(1, "請填寫寄件人名稱"),
   senderEmail: z.email("寄件人 Email 格式不正確"),
-  encryption: z.enum(["TLS", "SSL"]),
 });
 
 export const workflowConfigSchema = z.object({

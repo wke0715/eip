@@ -2,7 +2,6 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { encrypt, decrypt } from "@/lib/crypto";
 import { createUserSchema, updateUserSchema } from "@/lib/validators/user";
 import {
   updateSystemSettingSchema,
@@ -218,27 +217,19 @@ export async function getSmtpConfig() {
     where: { isActive: true },
   });
   if (!config) return null;
-  // 不回傳密碼
-  return { ...config, encryptedPassword: undefined };
+  return { senderName: config.senderName, senderEmail: config.senderEmail };
 }
 
 export async function updateSmtpConfig(formData: FormData) {
   const session = await requireAdmin();
 
   const raw = {
-    host: formData.get("host"),
-    port: formData.get("port"),
-    username: formData.get("username"),
-    password: formData.get("password"),
     senderName: formData.get("senderName"),
     senderEmail: formData.get("senderEmail"),
-    encryption: formData.get("encryption"),
   };
 
   const parsed = smtpConfigSchema.parse(raw);
-  const encryptedPassword = encrypt(parsed.password);
 
-  // Upsert: 只保留一筆 active 設定
   const existing = await prisma.smtpConfig.findFirst({
     where: { isActive: true },
   });
@@ -246,27 +237,11 @@ export async function updateSmtpConfig(formData: FormData) {
   if (existing) {
     await prisma.smtpConfig.update({
       where: { id: existing.id },
-      data: {
-        host: parsed.host,
-        port: parsed.port,
-        username: parsed.username,
-        encryptedPassword,
-        senderName: parsed.senderName,
-        senderEmail: parsed.senderEmail,
-        encryption: parsed.encryption,
-      },
+      data: { senderName: parsed.senderName, senderEmail: parsed.senderEmail },
     });
   } else {
     await prisma.smtpConfig.create({
-      data: {
-        host: parsed.host,
-        port: parsed.port,
-        username: parsed.username,
-        encryptedPassword,
-        senderName: parsed.senderName,
-        senderEmail: parsed.senderEmail,
-        encryption: parsed.encryption,
-      },
+      data: { senderName: parsed.senderName, senderEmail: parsed.senderEmail },
     });
   }
 
@@ -274,7 +249,7 @@ export async function updateSmtpConfig(formData: FormData) {
     data: {
       userId: session.user.id,
       action: "ADMIN_UPDATE_SMTP",
-      target: parsed.host,
+      target: parsed.senderEmail,
     },
   });
 
@@ -285,36 +260,28 @@ export async function testSmtpConnection() {
   const session = await requireAdmin();
 
   const config = await prisma.smtpConfig.findFirst({ where: { isActive: true } });
-  if (!config) return { error: "尚未設定 SMTP，請先儲存設定" };
+  if (!config) return { error: "尚未設定寄件人資訊，請先儲存設定" };
 
-  const nodemailer = await import("nodemailer");
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { error: "未設定 RESEND_API_KEY 環境變數" };
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.encryption === "SSL",
-    auth: {
-      user: config.username,
-      pass: decrypt(config.encryptedPassword),
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-  });
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
 
   const to = session.user.email!;
 
   try {
-    await transporter.verify();
-    await transporter.sendMail({
-      from: `"${config.senderName}" <${config.senderEmail}>`,
+    const result = await resend.emails.send({
+      from: `${config.senderName} <${config.senderEmail}>`,
       to,
-      subject: "企盉 EIP — SMTP 測試信",
-      text: "這是一封 SMTP 連線測試信，收到代表設定正確。",
-      html: "<p>這是一封 <strong>SMTP 連線測試信</strong>，收到代表設定正確。</p>",
+      subject: "企盉 EIP — 郵件功能測試",
+      text: "這是一封郵件功能測試信，收到代表設定正確。",
+      html: "<p>這是一封<strong>郵件功能測試信</strong>，收到代表設定正確。</p>",
     });
+    if (result.error) return { error: `發送失敗：${result.error.message}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { error: `SMTP 錯誤：${msg}` };
+    return { error: `發送失敗：${msg}` };
   }
 
   return { success: true, message: `測試信已寄送至 ${to}` };

@@ -262,14 +262,14 @@ model SystemSetting {
 }
 
 model SmtpConfig {
-  id                String  @id @default(cuid())
-  host              String
-  port              Int
-  username          String
-  encryptedPassword String
+  id                String   @id @default(cuid())
+  host              String?
+  port              Int?
+  username          String?
+  encryptedPassword String?
   senderName        String
   senderEmail       String
-  encryption        String
+  encryption        String?
   isActive          Boolean  @default(true)
   updatedAt         DateTime @updatedAt
 }

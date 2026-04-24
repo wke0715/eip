@@ -1,32 +1,46 @@
 import { prisma } from "./prisma";
-import { decrypt } from "./crypto";
 import {
   generateIcsContent,
   buildGoogleCalendarUrl,
   type CalendarEventInput,
 } from "./ics";
 
-async function getTransporter() {
+async function getSenderConfig() {
   const config = await prisma.smtpConfig.findFirst({
     where: { isActive: true },
   });
-  if (!config) throw new Error("尚未設定 SMTP");
+  if (!config) throw new Error("尚未設定寄件人資訊");
+  return { from: `${config.senderName} <${config.senderEmail}>` };
+}
 
-  const nodemailer = await import("nodemailer");
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.encryption === "SSL",
-    auth: {
-      user: config.username,
-      pass: decrypt(config.encryptedPassword),
-    },
+async function sendEmail(params: {
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
+  html: string;
+  icsContent?: string;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("未設定 RESEND_API_KEY 環境變數");
+
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
+
+  const attachments = params.icsContent
+    ? [{ filename: "meeting.ics", content: Buffer.from(params.icsContent) }]
+    : [];
+
+  const result = await resend.emails.send({
+    from: params.from,
+    to: params.to,
+    subject: params.subject,
+    text: params.text,
+    html: params.html,
+    attachments,
   });
 
-  return {
-    transporter,
-    from: `"${config.senderName}" <${config.senderEmail}>`,
-  };
+  if (result.error) throw new Error(result.error.message);
 }
 
 export interface BookingMailInput {
@@ -42,7 +56,6 @@ export interface BookingMailInput {
 }
 
 function formatTaipeiDate(date: Date): string {
-  // 從 Date 物件取 UTC 日期欄位（date 原本就存 UTC 午夜）
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
   const d = String(date.getUTCDate()).padStart(2, "0");
@@ -77,7 +90,7 @@ export async function sendMeetingBookingMail(input: BookingMailInput) {
   const recipients = buildRecipients(input);
   if (recipients.length === 0) return;
 
-  const { transporter, from } = await getTransporter();
+  const { from } = await getSenderConfig();
   const { locationLabel, dateStr, timeRange, attendeesText } =
     buildMailContext(input);
 
@@ -133,17 +146,13 @@ export async function sendMeetingBookingMail(input: BookingMailInput) {
     </div>
   `;
 
-  await transporter.sendMail({
+  await sendEmail({
     from,
-    to: recipients.map((a) => a.email).join(", "),
+    to: recipients.map((a) => a.email),
     subject: `[會議邀請] ${input.subject}（${dateStr} ${timeRange}）`,
     text,
     html,
-    icalEvent: {
-      method: "REQUEST",
-      filename: "meeting.ics",
-      content: icsContent,
-    },
+    icsContent,
   });
 
   return { recipientEmails: recipients.map((a) => a.email) };
@@ -158,7 +167,7 @@ export async function sendMeetingCancelMail(input: CancelMailInput) {
   const recipients = buildRecipients(input);
   if (recipients.length === 0) return;
 
-  const { transporter, from } = await getTransporter();
+  const { from } = await getSenderConfig();
   const { locationLabel, dateStr, timeRange, attendeesText } =
     buildMailContext(input);
 
@@ -215,17 +224,13 @@ export async function sendMeetingCancelMail(input: CancelMailInput) {
     </div>
   `;
 
-  await transporter.sendMail({
+  await sendEmail({
     from,
-    to: recipients.map((a) => a.email).join(", "),
+    to: recipients.map((a) => a.email),
     subject: `[已取消] ${input.subject}（${dateStr} ${timeRange}）`,
     text,
     html,
-    icalEvent: {
-      method: "CANCEL",
-      filename: "meeting.ics",
-      content: icsContent,
-    },
+    icsContent,
   });
 
   return { recipientEmails: recipients.map((a) => a.email) };
