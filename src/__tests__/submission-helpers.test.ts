@@ -15,10 +15,14 @@ import {
   parseYearMonthItems,
   safeZodParse,
   retryOnUniqueViolation,
+  requireServerAuth,
   createWorkflowApprovalsAndNotify,
   createFormSubmission,
   advanceResubmit,
 } from "@/lib/submission-helpers";
+
+import { auth } from "@/lib/auth";
+const mockAuth = vi.mocked(auth);
 
 import { resolveWorkflowApprovers } from "@/lib/workflow";
 import { generateFormNumber } from "@/lib/form-number";
@@ -144,6 +148,13 @@ describe("safeZodParse", () => {
   it("非法資料應拋出 Error（含 Zod 錯誤訊息）", () => {
     expect(() => safeZodParse(schema, { name: 123, age: "abc" })).toThrow(Error);
   });
+
+  it("非 ZodError 應直接重拋原始錯誤", () => {
+    const fakeSchema = {
+      parse: () => { throw new TypeError("not a zod error"); },
+    } as unknown as z.ZodSchema<unknown>;
+    expect(() => safeZodParse(fakeSchema, {})).toThrow(TypeError);
+  });
 });
 
 // ─── retryOnUniqueViolation ───────────────────────────────────
@@ -185,6 +196,45 @@ describe("retryOnUniqueViolation", () => {
     const fn = vi.fn().mockRejectedValue(p2002);
     await expect(retryOnUniqueViolation(fn, 3)).rejects.toThrow();
     expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("maxAttempts=0 迴圈不執行應拋出 unreachable", async () => {
+    const fn = vi.fn();
+    await expect(retryOnUniqueViolation(fn, 0)).rejects.toThrow("unreachable");
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+// ─── requireServerAuth ────────────────────────────────────────
+
+describe("requireServerAuth", () => {
+  it("session 為 null 應拋出「未登入」", async () => {
+    mockAuth.mockResolvedValue(null as never);
+    await expect(requireServerAuth()).rejects.toThrow("未登入");
+  });
+
+  it("session 無 user.id 應拋出「未登入」", async () => {
+    mockAuth.mockResolvedValue({ user: {}, expires: "2099" } as never);
+    await expect(requireServerAuth()).rejects.toThrow("未登入");
+  });
+
+  it("有效 session 應回傳 applicantId 與 displayName（name 優先）", async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: "user-1", name: "佑霖", email: "wke@example.com" },
+      expires: "2099",
+    } as never);
+    const result = await requireServerAuth();
+    expect(result.applicantId).toBe("user-1");
+    expect(result.displayName).toBe("佑霖");
+  });
+
+  it("name 為 null 時退到 email", async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: "user-2", name: null, email: "wke@example.com" },
+      expires: "2099",
+    } as never);
+    const result = await requireServerAuth();
+    expect(result.displayName).toBe("wke@example.com");
   });
 });
 

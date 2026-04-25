@@ -82,6 +82,10 @@ describe("formTypeLabel", () => {
   it("LEAVE 沒帶 leaveRequest 只顯示「請假 -」不炸", () => {
     expect(formTypeLabel({ ...leave, leaveRequest: null })).toBe("請假 -");
   });
+  it("未知 formType 回傳 formType 原始值", () => {
+    const unknown = { ...leave, formType: "UNKNOWN" } as unknown as SubmissionLike;
+    expect(formTypeLabel(unknown)).toBe("UNKNOWN");
+  });
 });
 
 describe("formNumber", () => {
@@ -93,6 +97,10 @@ describe("formNumber", () => {
   });
   it("關聯缺失回傳 null", () => {
     expect(formNumber({ ...leave, leaveRequest: null })).toBeNull();
+  });
+  it("未知 formType 回傳 null", () => {
+    const unknown = { ...leave, formType: "UNKNOWN" } as unknown as SubmissionLike;
+    expect(formNumber(unknown)).toBeNull();
   });
 });
 
@@ -108,6 +116,10 @@ describe("formPeriod", () => {
   it("關聯缺失回傳「-」", () => {
     expect(formPeriod({ ...leave, leaveRequest: null })).toBe("-");
   });
+  it("未知 formType 回傳「-」", () => {
+    const unknown = { ...leave, formType: "UNKNOWN" } as unknown as SubmissionLike;
+    expect(formPeriod(unknown)).toBe("-");
+  });
 });
 
 describe("formAmountOrHours", () => {
@@ -122,6 +134,10 @@ describe("formAmountOrHours", () => {
   });
   it("OTHER_EXPENSE 顯示金額", () => {
     expect(formAmountOrHours(otherExpense)).toBe("NT$ 800");
+  });
+  it("未知 formType 回傳「-」", () => {
+    const unknown = { ...leave, formType: "UNKNOWN" } as unknown as SubmissionLike;
+    expect(formAmountOrHours(unknown)).toBe("-");
   });
 });
 
