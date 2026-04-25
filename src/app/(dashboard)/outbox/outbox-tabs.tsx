@@ -29,10 +29,10 @@ const tabs: { key: Tab; label: string }[] = [
 ];
 
 interface OutboxTabsProps {
-  pending: OutboxData["pending"];
-  approved: OutboxData["approved"];
-  rejected: OutboxData["rejected"];
-  initialTab?: string;
+  readonly pending: OutboxData["pending"];
+  readonly approved: OutboxData["approved"];
+  readonly rejected: OutboxData["rejected"];
+  readonly initialTab?: string;
 }
 
 function toValidTab(value?: string): Tab {

@@ -31,11 +31,11 @@ function colorToStatus(argb: string | undefined): CalendarEventInput["status"] {
 
 // 解析日期字串 "MM/DD(星期)" → "YYYY-MM-DD"
 function parseDateString(raw: string, year: number): string | null {
-  const match = raw.match(/^(\d{1,2})\/(\d{1,2})/);
+  const match = /^(\d{1,2})\/(\d{1,2})/.exec(raw);
   if (!match) return null;
-  const month = parseInt(match[1], 10);
-  const day = parseInt(match[2], 10);
-  if (isNaN(month) || isNaN(day)) return null;
+  const month = Number.parseInt(match[1], 10);
+  const day = Number.parseInt(match[2], 10);
+  if (Number.isNaN(month) || Number.isNaN(day)) return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
@@ -73,7 +73,7 @@ function parsePersonCells(
 ): CalendarEventInput[] {
   const result: CalendarEventInput[] = [];
   for (const [col, personName] of Object.entries(PERSON_COLUMNS)) {
-    const colIdx = col.charCodeAt(0) - "A".charCodeAt(0);
+    const colIdx = (col.codePointAt(0) ?? 0) - ("A".codePointAt(0) ?? 0);
     const cell = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })];
     const rawValue = cell?.v ? String(cell.v).trim() : "";
     const fgColor: string | undefined =
@@ -109,18 +109,18 @@ function processRow(
 ): { dateStr: string; clientEvent: string | null } | null {
   const cellA = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 0 })];
   if (cellA?.v) {
-    const wMatch = String(cellA.v).match(/W(\d+)/i);
-    if (wMatch) state.currentWeekNumber = parseInt(wMatch[1], 10);
+    const wMatch = /W(\d+)/i.exec(String(cellA.v));
+    if (wMatch) state.currentWeekNumber = Number.parseInt(wMatch[1], 10);
   }
 
   const cellB = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 1 })];
   if (!cellB?.v) return null;
 
   const rawDate = String(cellB.v);
-  const monthMatch = rawDate.match(/^(\d{1,2})\//);
+  const monthMatch = /^(\d{1,2})\//.exec(rawDate);
   if (!monthMatch) return null;
 
-  const parsedMonth = parseInt(monthMatch[1], 10);
+  const parsedMonth = Number.parseInt(monthMatch[1], 10);
   if (state.lastParsedMonth > 0 && parsedMonth < state.lastParsedMonth - 1) {
     state.currentYear++;
   }
@@ -159,7 +159,7 @@ export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
   const clientEvents: ClientCalendarEventInput[] = [];
 
   const yearMatch = sheetName.match(/(\d{4})/);
-  const baseYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+  const baseYear = yearMatch ? Number.parseInt(yearMatch[1], 10) : new Date().getFullYear();
   const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
   const state: RowState = { currentWeekNumber: null, currentYear: baseYear, lastParsedMonth: 0 };
 

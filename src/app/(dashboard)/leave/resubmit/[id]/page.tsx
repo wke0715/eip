@@ -18,7 +18,7 @@ function toTimeStr(d: Date) {
 export default async function ResubmitLeavePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  readonly params: Promise<{ id: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");

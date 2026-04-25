@@ -34,10 +34,10 @@ function formatIcsUtc(d: Date): string {
 // ICS 規定特殊字元需要 escape
 function escapeIcsText(s: string): string {
   return s
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
+    .replaceAll("\\", String.raw`\\`)
+    .replaceAll(";", String.raw`\;`)
+    .replaceAll(",", String.raw`\,`)
+    .replaceAll(/\r?\n/g, String.raw`\n`);
 }
 
 export function generateIcsContent(event: CalendarEventInput): string {

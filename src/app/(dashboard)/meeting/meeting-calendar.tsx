@@ -33,7 +33,7 @@ const COLORS = [
 
 function getRoomColor(roomId: string, roomIds: string[]) {
   const idx = roomIds.indexOf(roomId);
-  return COLORS[(idx >= 0 ? idx : 0) % COLORS.length];
+  return COLORS[Math.max(idx, 0) % COLORS.length];
 }
 
 // ── Date utils ────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ const MONTH_ZH = [
 function getMonthGrid(year: number, month: number): (number | null)[] {
   const firstDow = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
-  const cells: (number | null)[] = Array(firstDow).fill(null);
+  const cells: (number | null)[] = new Array(firstDow).fill(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
@@ -80,10 +80,10 @@ function isToday(year: number, month: number, day: number): boolean {
 // ── Component ─────────────────────────────────────────────────────────
 
 interface Props {
-  rooms: Room[];
-  users: User[];
-  currentUserId: string;
-  isAdmin: boolean;
+  readonly rooms: readonly Room[];
+  readonly users: readonly User[];
+  readonly currentUserId: string;
+  readonly isAdmin: boolean;
 }
 
 export function MeetingCalendar({ rooms, users, currentUserId, isAdmin }: Props) {

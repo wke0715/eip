@@ -44,13 +44,13 @@ const selectClass =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs";
 
 interface Props {
-  configs: WorkflowConfig[];
-  approverOptions: ApproverOption[];
+  readonly configs: readonly WorkflowConfig[];
+  readonly approverOptions: readonly ApproverOption[];
 }
 
 function approverLabel(
   approverRole: string,
-  approverOptions: ApproverOption[],
+  approverOptions: readonly ApproverOption[],
 ): string {
   if (approverRole === "DIRECT_MANAGER") return "直屬主管";
   if (approverRole.startsWith(USER_PREFIX)) {
@@ -64,7 +64,7 @@ function approverLabel(
 type Step = { stepOrder: number; approverRole: string };
 
 function buildInitialSteps(
-  configs: WorkflowConfig[],
+  configs: readonly WorkflowConfig[],
 ): Record<string, Step[]> {
   const map: Record<string, Step[]> = {};
   for (const t of FORM_TYPES) {

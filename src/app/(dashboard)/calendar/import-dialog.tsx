@@ -14,9 +14,9 @@ import {
 import { Upload } from "lucide-react";
 
 interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSuccess: () => void;
 }
 
 export function ImportDialog({ open, onOpenChange, onSuccess }: Props) {

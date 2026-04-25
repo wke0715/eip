@@ -15,7 +15,7 @@ const FORM_TYPE_PREFIX: Record<FormType, string> = {
 
 export function getTaipeiDateStr(date: Date = new Date()): string {
   const taipei = new Date(date.getTime() + 8 * 60 * 60 * 1000);
-  return taipei.toISOString().slice(0, 10).replace(/-/g, "");
+  return taipei.toISOString().slice(0, 10).replaceAll("-", "");
 }
 
 function prefixOf(formType: FormType): string {
@@ -82,7 +82,7 @@ export async function generateFormNumber(
 
   let nextSeq = 1;
   if (latest) {
-    const seq = parseInt(latest.slice(-4), 10);
+    const seq = Number.parseInt(latest.slice(-4), 10);
     if (!Number.isNaN(seq)) nextSeq = seq + 1;
   }
 

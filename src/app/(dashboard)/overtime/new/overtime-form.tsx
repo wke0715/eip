@@ -52,9 +52,9 @@ export function OvertimeForm({
   submitAction = submitOvertimeRequest,
   submitLabel = "送出加班單",
 }: {
-  defaultValues: OvertimeFormDefaultValues;
-  submitAction?: (formData: FormData) => Promise<unknown>;
-  submitLabel?: string;
+  readonly defaultValues: OvertimeFormDefaultValues;
+  readonly submitAction?: (formData: FormData) => Promise<unknown>;
+  readonly submitLabel?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();

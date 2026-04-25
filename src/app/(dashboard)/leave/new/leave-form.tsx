@@ -64,10 +64,10 @@ export function LeaveForm({
   submitAction = submitLeaveRequest,
   submitLabel = "送出請假單",
 }: {
-  leaveTypes: LeaveType[];
-  defaultValues?: LeaveFormDefaultValues;
-  submitAction?: (formData: FormData) => Promise<unknown>;
-  submitLabel?: string;
+  readonly leaveTypes: readonly LeaveType[];
+  readonly defaultValues?: LeaveFormDefaultValues;
+  readonly submitAction?: (formData: FormData) => Promise<unknown>;
+  readonly submitLabel?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -113,7 +113,7 @@ export function LeaveForm({
             <div className="space-y-2">
               <Label>請假時數</Label>
               <Input
-                value={hours !== null ? `${hours} 小時` : ""}
+                value={hours === null ? "" : `${hours} 小時`}
                 placeholder="選擇日期時間後自動計算"
                 readOnly
                 disabled

@@ -13,8 +13,8 @@ export function DeleteSubmissionButton({
   submissionId,
   formType,
 }: {
-  submissionId: string;
-  formType: FormType;
+  readonly submissionId: string;
+  readonly formType: FormType;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();

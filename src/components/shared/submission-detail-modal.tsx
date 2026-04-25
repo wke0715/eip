@@ -58,7 +58,7 @@ function groupByRound(actions: ApprovalAction[]): Map<number, ApprovalAction[]> 
   return map;
 }
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailRow({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="grid grid-cols-3 gap-2 py-1.5 border-b last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -189,10 +189,10 @@ function PrintContent({ data }: { data: SubmissionDetail }) {
 }
 
 interface SubmissionDetailModalProps {
-  submissionId: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  showApprovalButtons?: boolean;
+  readonly submissionId: string | null;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly showApprovalButtons?: boolean;
 }
 
 export function SubmissionDetailModal({
@@ -222,8 +222,8 @@ export function SubmissionDetailModal({
     const win = window.open("", "_blank", "width=800,height=600");
     if (!win) return;
     const printTitle = data.formType === "EXPENSE" ? "出差旅費報告單詳情" : "請假單詳情";
-    win.document.write(`<!DOCTYPE html><html><head><title>${printTitle}</title></head><body>${PrintContent({ data })}</body></html>`);
-    win.document.close();
+    win.document.title = printTitle;
+    win.document.body.innerHTML = PrintContent({ data });
     win.focus();
     win.print();
   }

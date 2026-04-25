@@ -20,9 +20,9 @@ interface NotificationData {
 }
 
 interface NotificationDetailModalProps {
-  notification: NotificationData | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  readonly notification: NotificationData | null;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 }
 
 export function NotificationDetailModal({
@@ -34,20 +34,19 @@ export function NotificationDetailModal({
     if (!notification) return;
     const win = window.open("", "_blank", "width=700,height=500");
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>${notification.title}</title>
-    <style>
+    win.document.title = notification.title;
+    win.document.head.innerHTML = `<style>
       body { font-family: sans-serif; font-size: 14px; padding: 32px; color: #111; }
       h1 { font-size: 18px; margin-bottom: 16px; }
       .meta { color: #666; font-size: 12px; margin-bottom: 24px; }
       .body { line-height: 1.8; }
-    </style>
-    </head><body>
+    </style>`;
+    win.document.body.innerHTML = `
       <h1>${notification.title}</h1>
       <p class="meta">時間：${new Date(notification.createdAt).toLocaleString("zh-TW")}</p>
       <p class="body">${notification.message}</p>
       <p style='color:#999;font-size:12px;margin-top:40px'>列印時間：${new Date().toLocaleString("zh-TW")}</p>
-    </body></html>`);
-    win.document.close();
+    `;
     win.focus();
     win.print();
   }
@@ -69,7 +68,11 @@ export function NotificationDetailModal({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={handlePrint} disabled={!notification}>
+          <Button
+            variant="outline"
+            onClick={handlePrint}
+            disabled={!notification}
+          >
             <Printer className="mr-2 h-4 w-4" />
             列印
           </Button>

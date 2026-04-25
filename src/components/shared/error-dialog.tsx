@@ -13,8 +13,8 @@ export function ErrorDialog({
   message,
   onClose,
 }: {
-  message: string | null;
-  onClose: () => void;
+  readonly message: string | null;
+  readonly onClose: () => void;
 }) {
   return (
     <Dialog open={!!message} onOpenChange={(open) => !open && onClose()}>

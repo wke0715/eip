@@ -13,7 +13,7 @@ interface User {
 }
 
 interface Props {
-  users: User[];
+  readonly users: readonly User[];
 }
 
 export function AttendeePicker({ users }: Props) {

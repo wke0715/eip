@@ -35,16 +35,16 @@ export interface ParsedExpenseWorkbook {
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
-  if (typeof v === "number") return isFinite(v) ? v : 0;
-  const s = String(v).replace(/[,\s]/g, "");
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = String(v).replaceAll(/[,\s]/g, ""); // NOSONAR - intentional unknown coercion in Excel parser
   if (s === "" || s === "-") return 0;
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+  const n = Number.parseFloat(s);
+  return Number.isNaN(n) ? 0 : n;
 }
 
 function toStr(v: unknown): string {
   if (v == null) return "";
-  return String(v).trim();
+  return String(v).trim(); // NOSONAR - intentional unknown coercion in Excel parser
 }
 
 function findSheet(wb: XLSX.WorkBook, candidates: string[]): string | null {
@@ -59,8 +59,8 @@ function inferYearFromWorkbook(wb: XLSX.WorkBook): number {
     const sheet = wb.Sheets[name];
     const cellA1 = sheet["A1"];
     const text = toStr(cellA1?.v);
-    const match = text.match(/(\d{4})/);
-    if (match) return parseInt(match[1], 10);
+    const match = /(\d{4})/.exec(text);
+    if (match) return Number.parseInt(match[1], 10);
   }
   return new Date().getFullYear();
 }
@@ -71,19 +71,19 @@ function parseExpenseDate(raw: string, year: number): string | null {
   if (!trimmed) return null;
 
   // YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD
-  const full = trimmed.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  const full = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/.exec(trimmed);
   if (full) {
-    const y = parseInt(full[1], 10);
-    const m = parseInt(full[2], 10);
-    const d = parseInt(full[3], 10);
+    const y = Number.parseInt(full[1], 10);
+    const m = Number.parseInt(full[2], 10);
+    const d = Number.parseInt(full[3], 10);
     return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
 
   // MM/DD(週) 或 MM/DD
-  const short = trimmed.match(/^(\d{1,2})[./-](\d{1,2})/);
+  const short = /^(\d{1,2})[./-](\d{1,2})/.exec(trimmed);
   if (short) {
-    const m = parseInt(short[1], 10);
-    const d = parseInt(short[2], 10);
+    const m = Number.parseInt(short[1], 10);
+    const d = Number.parseInt(short[2], 10);
     if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
       return `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     }
@@ -140,7 +140,7 @@ function parseExpenseSheet(
     const remark = toStr(row[15]) || null;
 
     // 從工作項目字串嘗試推斷 workCategory（S/C/T/O）
-    const catMatch = workDetail.match(/_([SCTO])(?:[^A-Z]|$)/);
+    const catMatch = /_([SCTO])(?:[^A-Z]|$)/.exec(workDetail);
     const workCategory = (catMatch?.[1] ?? "O") as "S" | "C" | "T" | "O";
 
     items.push({
@@ -159,12 +159,12 @@ function parseExpenseSheet(
       transportAmount,
       mealType:
         mealTypeRaw === "A" || mealTypeRaw === "B"
-          ? (mealTypeRaw as "A" | "B")
+          ? mealTypeRaw
           : null,
       mealAmount,
       otherKind:
         otherKindRaw === "H" || otherKindRaw === "O"
-          ? (otherKindRaw as "H" | "O")
+          ? otherKindRaw
           : null,
       otherName: null,
       otherAmount,

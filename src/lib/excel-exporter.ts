@@ -57,7 +57,7 @@ function dbDateToLocal(iso: string | Date): Date {
 
 /** 計算 ISO 週次（週一為週起點）*/
 function isoWeekNumber(d: Date): number {
-  const target = new Date(d.getTime());
+  const target = new Date(d);
   target.setHours(0, 0, 0, 0);
   target.setDate(target.getDate() + 3 - ((target.getDay() + 6) % 7));
   const week1 = new Date(target.getFullYear(), 0, 4);

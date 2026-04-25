@@ -10,7 +10,7 @@ import type { OvertimeItemInput } from "@/lib/validators/overtime";
 export default async function ResubmitOvertimePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  readonly params: Promise<{ id: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");

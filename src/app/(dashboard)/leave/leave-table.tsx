@@ -16,7 +16,7 @@ type LeaveSubmission = SubmissionLike;
 export function LeaveTable({
   submissions,
 }: {
-  submissions: LeaveSubmission[];
+  readonly submissions: readonly LeaveSubmission[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);

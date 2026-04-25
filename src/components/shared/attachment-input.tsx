@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 interface AttachmentInputProps {
-  currentFileName?: string | null;
-  submissionId?: string | null;
-  maxSizeMb?: number;
+  readonly currentFileName?: string | null;
+  readonly submissionId?: string | null;
+  readonly maxSizeMb?: number;
 }
 
 export function AttachmentInput({

@@ -22,11 +22,11 @@ import {
 export type SubmissionTableVariant = "list" | "inbox" | "outbox";
 
 export interface SubmissionTableProps<T extends SubmissionLike> {
-  rows: T[];
-  variant?: SubmissionTableVariant;
-  onRowClick?: (row: T) => void;
-  renderActions?: (row: T) => ReactNode;
-  emptyText?: string;
+  readonly rows: readonly T[];
+  readonly variant?: SubmissionTableVariant;
+  readonly onRowClick?: (row: T) => void;
+  readonly renderActions?: (row: T) => ReactNode;
+  readonly emptyText?: string;
 }
 
 export function SubmissionTable<T extends SubmissionLike>({

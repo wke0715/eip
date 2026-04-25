@@ -25,7 +25,13 @@ interface Log {
   createdAt: string;
 }
 
-export function LogTable({ logs, total }: { logs: Log[]; total: number }) {
+export function LogTable({
+  logs,
+  total,
+}: {
+  readonly logs: readonly Log[];
+  readonly total: number;
+}) {
   const [isPending, startTransition] = useTransition();
 
   function handleExport() {
@@ -46,9 +52,7 @@ export function LogTable({ logs, total }: { logs: Log[]; total: number }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">
-          操作紀錄（共 {total} 筆）
-        </CardTitle>
+        <CardTitle className="text-base">操作紀錄（共 {total} 筆）</CardTitle>
         <Button
           size="sm"
           variant="outline"

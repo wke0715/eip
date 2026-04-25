@@ -86,9 +86,9 @@ export function ExpenseForm({
   submitAction = submitExpenseReport,
   submitLabel = "送出報告單",
 }: {
-  defaultValues: ExpenseFormDefaultValues;
-  submitAction?: (formData: FormData) => Promise<unknown>;
-  submitLabel?: string;
+  readonly defaultValues: ExpenseFormDefaultValues;
+  readonly submitAction?: (formData: FormData) => Promise<unknown>;
+  readonly submitLabel?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();

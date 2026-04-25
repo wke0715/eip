@@ -11,13 +11,13 @@ export default async function LoginPage() {
 
   const [companyName, devUsers] = await Promise.all([
     getCompanyName(),
-    process.env.NODE_ENV !== "production"
-      ? prisma.user.findMany({
+    process.env.NODE_ENV === "production"
+      ? Promise.resolve([])
+      : prisma.user.findMany({
           where: { isActive: true },
           select: { id: true, name: true, email: true, role: true },
           orderBy: [{ role: "asc" }, { name: "asc" }],
-        })
-      : Promise.resolve([]),
+        }),
   ]);
 
   return (

@@ -6,7 +6,7 @@ import type { SubmissionLike } from "@/lib/form-labels";
 export function OvertimeTable({
   submissions,
 }: {
-  submissions: SubmissionLike[];
+  readonly submissions: readonly SubmissionLike[];
 }) {
   return (
     <ExpenseFormTable

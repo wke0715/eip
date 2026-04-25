@@ -33,8 +33,8 @@ interface User {
 }
 
 interface Props {
-  users: User[];
-  managers: Array<{ id: string; name: string | null; email: string }>;
+  readonly users: readonly User[];
+  readonly managers: ReadonlyArray<{ readonly id: string; readonly name: string | null; readonly email: string }>;
 }
 
 export function UserTable({ users, managers }: Props) {

@@ -4,7 +4,7 @@ import { OutboxTabs } from "./outbox-tabs";
 export default async function OutboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  readonly searchParams: Promise<{ tab?: string }>;
 }) {
   const [{ pending, approved, rejected }, { tab }] = await Promise.all([
     getOutboxItems(),
@@ -14,7 +14,12 @@ export default async function OutboxPage({
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">寄件匣</h1>
-      <OutboxTabs pending={pending} approved={approved} rejected={rejected} initialTab={tab} />
+      <OutboxTabs
+        pending={pending}
+        approved={approved}
+        rejected={rejected}
+        initialTab={tab}
+      />
     </div>
   );
 }

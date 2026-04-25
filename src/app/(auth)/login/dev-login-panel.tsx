@@ -9,7 +9,11 @@ interface DevUser {
   role: "ADMIN" | "USER";
 }
 
-export function DevLoginPanel({ users }: { users: DevUser[] }) {
+export function DevLoginPanel({
+  users,
+}: {
+  readonly users: readonly DevUser[];
+}) {
   const [selectedId, setSelectedId] = useState(users[0]?.id ?? "");
 
   if (users.length === 0) {
@@ -22,7 +26,9 @@ export function DevLoginPanel({ users }: { users: DevUser[] }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-center text-muted-foreground">開發模式快速登入</p>
+      <p className="text-xs text-center text-muted-foreground">
+        開發模式快速登入
+      </p>
       <select
         value={selectedId}
         onChange={(e) => setSelectedId(e.target.value)}

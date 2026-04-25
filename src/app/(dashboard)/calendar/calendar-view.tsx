@@ -54,7 +54,7 @@ const PERSON_DOT = [
 
 function personDot(name: string, names: string[]) {
   const idx = names.indexOf(name);
-  return PERSON_DOT[(idx >= 0 ? idx : 0) % PERSON_DOT.length];
+  return PERSON_DOT[Math.max(idx, 0) % PERSON_DOT.length];
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ function isToday(d: Date): boolean {
 function getMonthGrid(year: number, month: number): (Date | null)[] {
   const firstDow = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
-  const cells: (Date | null)[] = Array(firstDow).fill(null);
+  const cells: (Date | null)[] = new Array(firstDow).fill(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month - 1, d));
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
@@ -119,7 +119,7 @@ function getWeekDays(anchor: Date): Date[] {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  initialPersonNames: string[];
+  readonly initialPersonNames: readonly string[];
 }
 
 export function CalendarView({ initialPersonNames }: Props) {
@@ -131,7 +131,7 @@ export function CalendarView({ initialPersonNames }: Props) {
   const [selectedPerson, setSelectedPerson] = useState("");
   const [events, setEvents]           = useState<CalEvent[]>([]);
   const [clientEvents, setClientEvents] = useState<ClientEvent[]>([]);
-  const [personNames, setPersonNames] = useState<string[]>(initialPersonNames);
+  const [personNames, setPersonNames] = useState<string[]>([...initialPersonNames]);
   const [importOpen, setImportOpen]   = useState(false);
   const [editTarget, setEditTarget]   = useState<EditTarget | null>(null);
   const [highlightToday, setHighlightToday] = useState(false);
@@ -296,7 +296,7 @@ export function CalendarView({ initialPersonNames }: Props) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { window.location.href = `/api/calendar/export?year=${year}`; }}
+            onClick={() => { globalThis.location.href = `/api/calendar/export?year=${year}`; }}
           >
             <Download className="h-4 w-4 mr-1.5" />
             匯出 Excel

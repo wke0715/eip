@@ -168,7 +168,7 @@ export async function exportLogsAsCsv() {
   const header = "ID,操作者ID,操作類型,操作目標,詳細內容,IP位址,時間";
   const rows = logs.map(
     (l) =>
-      `"${l.id}","${l.userId ?? ""}","${l.action}","${l.target ?? ""}","${(l.detail ?? "").replace(/"/g, '""')}","${l.ipAddress ?? ""}","${l.createdAt.toISOString()}"`
+      `"${l.id}","${l.userId ?? ""}","${l.action}","${l.target ?? ""}","${(l.detail ?? "").replaceAll('"', '""')}","${l.ipAddress ?? ""}","${l.createdAt.toISOString()}"`
   );
 
   return [header, ...rows].join("\n");

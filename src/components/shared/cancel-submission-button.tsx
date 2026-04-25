@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 export function CancelSubmissionButton({
   submissionId,
 }: {
-  submissionId: string;
+  readonly submissionId: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();

@@ -42,9 +42,9 @@ export function OtherExpenseForm({
   submitAction = submitOtherExpenseRequest,
   submitLabel = "送出申請單",
 }: {
-  defaultValues: OtherExpenseFormDefaultValues;
-  submitAction?: (formData: FormData) => Promise<unknown>;
-  submitLabel?: string;
+  readonly defaultValues: OtherExpenseFormDefaultValues;
+  readonly submitAction?: (formData: FormData) => Promise<unknown>;
+  readonly submitLabel?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();

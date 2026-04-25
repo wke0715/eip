@@ -45,13 +45,13 @@ export type MeetingDialogTarget =
   | { mode: "view"; booking: BookingForDialog };
 
 interface Props {
-  target: MeetingDialogTarget | null;
-  rooms: Room[];
-  users: User[];
-  currentUserId: string;
-  isAdmin: boolean;
-  onClose: () => void;
-  onSaved: () => void;
+  readonly target: MeetingDialogTarget | null;
+  readonly rooms: readonly Room[];
+  readonly users: readonly User[];
+  readonly currentUserId: string;
+  readonly isAdmin: boolean;
+  readonly onClose: () => void;
+  readonly onSaved: () => void;
 }
 
 const SELECT_CLS =

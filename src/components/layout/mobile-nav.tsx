@@ -44,10 +44,10 @@ function MobileNavLink({
 }
 
 interface MobileNavProps {
-  isOpen: boolean;
-  onClose: () => void;
-  isAdmin?: boolean;
-  companyName?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly isAdmin?: boolean;
+  readonly companyName?: string;
 }
 
 export function MobileNav({

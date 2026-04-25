@@ -33,10 +33,10 @@ export interface EditTarget {
 }
 
 interface Props {
-  target: EditTarget | null;
-  personNames: string[];  // 所有人員名單（新增時供選擇）
-  onClose: () => void;
-  onSaved: () => void;
+  readonly target: EditTarget | null;
+  readonly personNames: readonly string[];
+  readonly onClose: () => void;
+  readonly onSaved: () => void;
 }
 
 export function CalendarEditDialog({ target, personNames, onClose, onSaved }: Props) {

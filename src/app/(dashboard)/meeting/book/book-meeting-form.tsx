@@ -29,8 +29,8 @@ export function BookMeetingForm({
   rooms,
   users,
 }: {
-  rooms: Room[];
-  users: User[];
+  readonly rooms: readonly Room[];
+  readonly users: readonly User[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();

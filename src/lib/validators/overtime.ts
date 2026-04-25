@@ -34,11 +34,11 @@ export type CreateOvertimeRequestInput = z.infer<
  * - 不扣午休（由使用者自行輸入實際工作時間）
  */
 export function calcWorkHoursFromRange(range: string): number {
-  const match = range.match(/^(\d{2}):(\d{2})~(\d{2}):(\d{2})$/);
+  const match = /^(\d{2}):(\d{2})~(\d{2}):(\d{2})$/.exec(range);
   if (!match) return 0;
   const [, sh, sm, eh, em] = match;
-  const startMin = parseInt(sh, 10) * 60 + parseInt(sm, 10);
-  const endMin = parseInt(eh, 10) * 60 + parseInt(em, 10);
+  const startMin = Number.parseInt(sh, 10) * 60 + Number.parseInt(sm, 10);
+  const endMin = Number.parseInt(eh, 10) * 60 + Number.parseInt(em, 10);
   if (endMin <= startMin) return 0;
   return Math.round(((endMin - startMin) / 60) * 100) / 100;
 }

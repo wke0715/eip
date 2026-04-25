@@ -35,7 +35,7 @@ interface Room {
   isActive: boolean;
 }
 
-export function RoomManager({ rooms }: { rooms: Room[] }) {
+export function RoomManager({ rooms }: { readonly rooms: readonly Room[] }) {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -109,7 +109,7 @@ export function RoomManager({ rooms }: { rooms: Room[] }) {
                     <TableCell className="font-medium">{room.name}</TableCell>
                     <TableCell>{room.location ?? "-"}</TableCell>
                     <TableCell>
-                      {room.capacity != null ? `${room.capacity} 人` : "-"}
+                      {room.capacity == null ? "-" : `${room.capacity} 人`}
                     </TableCell>
                     <TableCell>
                       <Badge variant={room.isActive ? "default" : "secondary"}>
