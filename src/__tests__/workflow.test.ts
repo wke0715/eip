@@ -97,7 +97,7 @@ describe("resolveWorkflowApprovers", () => {
   it("上一關審核者無主管應拋出含步驟編號的錯誤", async () => {
     const tx = makeTx({
       "user-1": { managerId: "mgr-1" },
-      "mgr-1": { managerId: null, name: "主管A" },
+      "mgr-1": { managerId: null },
     });
     await expect(
       resolveWorkflowApprovers(tx as never, "user-1", [
