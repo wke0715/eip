@@ -120,13 +120,16 @@ export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
   const events: CalendarEventInput[] = [];
   const clientEvents: ClientCalendarEventInput[] = [];
 
-  // 推斷年份（從 sheet 名稱或當前年份）
+  // 推斷起始年份（從 sheet 名稱或當前年份）
   const yearMatch = sheetName.match(/(\d{4})/);
-  const year = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+  const baseYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
 
   // 取得 sheet 範圍
   const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
   let currentWeekNumber: number | null = null;
+  // 追蹤月份進展，偵測跨年（月份從大→小表示新的一年）
+  let currentYear = baseYear;
+  let lastParsedMonth = 0;
 
   // 從 Row 2（index 1）開始，Col A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7
   for (let rowIdx = 1; rowIdx <= range.e.r; rowIdx++) {
@@ -141,7 +144,18 @@ export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
     const cellB = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 1 })];
     if (!cellB?.v) continue;
 
-    const dateStr = parseDateString(String(cellB.v), year);
+    const rawDate = String(cellB.v);
+    const monthMatch = rawDate.match(/^(\d{1,2})\//);
+    if (!monthMatch) continue;
+    const parsedMonth = parseInt(monthMatch[1], 10);
+
+    // 偵測跨年：月份從較大值回到較小值（如 12→1）
+    if (lastParsedMonth > 0 && parsedMonth < lastParsedMonth - 1) {
+      currentYear++;
+    }
+    lastParsedMonth = parsedMonth;
+
+    const dateStr = parseDateString(rawDate, currentYear);
     if (!dateStr) continue;
 
     // Col C：客戶行事曆
