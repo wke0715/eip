@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import MailComposer from "nodemailer/lib/mail-composer";
 import { google } from "googleapis";
 
 function getOAuth2Client() {
@@ -25,13 +25,7 @@ export async function sendViaGmail(params: {
   const auth = getOAuth2Client();
   const gmail = google.gmail({ version: "v1", auth });
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const compiler = nodemailer.createTransport({
-    streamTransport: true,
-    buffer: true,
-  } as any);
-
-  const info: { message: Buffer } = (await compiler.sendMail({
+  const composer = new MailComposer({
     from: params.from,
     to: params.to.join(", "),
     subject: params.subject,
@@ -46,9 +40,15 @@ export async function sendViaGmail(params: {
           },
         }
       : {}),
-  })) as any;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  });
 
-  const raw = info.message.toString("base64url");
+  const rawBuffer = await new Promise<Buffer>((resolve, reject) => {
+    composer.compile().build((err, buf) => {
+      if (err) reject(err);
+      else resolve(buf);
+    });
+  });
+
+  const raw = rawBuffer.toString("base64url");
   await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
 }
