@@ -96,16 +96,54 @@ function parsePersonCells(
   return result;
 }
 
+type RowState = {
+  currentWeekNumber: number | null;
+  currentYear: number;
+  lastParsedMonth: number;
+};
+
+function processRow(
+  sheet: XLSX.WorkSheet,
+  rowIdx: number,
+  state: RowState,
+): { dateStr: string; clientEvent: string | null } | null {
+  const cellA = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 0 })];
+  if (cellA?.v) {
+    const wMatch = String(cellA.v).match(/W(\d+)/i);
+    if (wMatch) state.currentWeekNumber = parseInt(wMatch[1], 10);
+  }
+
+  const cellB = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 1 })];
+  if (!cellB?.v) return null;
+
+  const rawDate = String(cellB.v);
+  const monthMatch = rawDate.match(/^(\d{1,2})\//);
+  if (!monthMatch) return null;
+
+  const parsedMonth = parseInt(monthMatch[1], 10);
+  if (state.lastParsedMonth > 0 && parsedMonth < state.lastParsedMonth - 1) {
+    state.currentYear++;
+  }
+  state.lastParsedMonth = parsedMonth;
+
+  const dateStr = parseDateString(rawDate, state.currentYear);
+  if (!dateStr) return null;
+
+  const cellC = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 2 })];
+  const clientEvent = cellC?.v ? String(cellC.v).trim() || null : null;
+
+  return { dateStr, clientEvent };
+}
+
 export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
   const workbook = XLSX.read(buffer, {
     type: "array",
-    cellStyles: true,   // 讀取顏色
+    cellStyles: true,
     cellDates: false,
   });
 
-  // 找「進度_2026」sheet
   const sheetName = workbook.SheetNames.find(
-    (n) => n.includes("進度") || n.toLowerCase().includes("schedule")
+    (n) => n.includes("進度") || n.toLowerCase().includes("schedule"),
   );
   if (!sheetName) {
     return {
@@ -120,52 +158,16 @@ export function parseCalendarExcel(buffer: ArrayBuffer): ParsedCalendarData {
   const events: CalendarEventInput[] = [];
   const clientEvents: ClientCalendarEventInput[] = [];
 
-  // 推斷起始年份（從 sheet 名稱或當前年份）
   const yearMatch = sheetName.match(/(\d{4})/);
   const baseYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
-
-  // 取得 sheet 範圍
   const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
-  let currentWeekNumber: number | null = null;
-  // 追蹤月份進展，偵測跨年（月份從大→小表示新的一年）
-  let currentYear = baseYear;
-  let lastParsedMonth = 0;
+  const state: RowState = { currentWeekNumber: null, currentYear: baseYear, lastParsedMonth: 0 };
 
-  // 從 Row 2（index 1）開始，Col A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7
   for (let rowIdx = 1; rowIdx <= range.e.r; rowIdx++) {
-    // Col A：週次（合併儲存格，只在首行有值）
-    const cellA = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 0 })];
-    if (cellA?.v) {
-      const wMatch = String(cellA.v).match(/W(\d+)/i);
-      if (wMatch) currentWeekNumber = parseInt(wMatch[1], 10);
-    }
-
-    // Col B：日期
-    const cellB = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 1 })];
-    if (!cellB?.v) continue;
-
-    const rawDate = String(cellB.v);
-    const monthMatch = rawDate.match(/^(\d{1,2})\//);
-    if (!monthMatch) continue;
-    const parsedMonth = parseInt(monthMatch[1], 10);
-
-    // 偵測跨年：月份從較大值回到較小值（如 12→1）
-    if (lastParsedMonth > 0 && parsedMonth < lastParsedMonth - 1) {
-      currentYear++;
-    }
-    lastParsedMonth = parsedMonth;
-
-    const dateStr = parseDateString(rawDate, currentYear);
-    if (!dateStr) continue;
-
-    // Col C：客戶行事曆
-    const cellC = sheet[XLSX.utils.encode_cell({ r: rowIdx, c: 2 })];
-    if (cellC?.v && String(cellC.v).trim()) {
-      clientEvents.push({ date: dateStr, event: String(cellC.v).trim() });
-    }
-
-    // Col D ~ H：各人員任務
-    events.push(...parsePersonCells(sheet, rowIdx, dateStr, currentWeekNumber));
+    const row = processRow(sheet, rowIdx, state);
+    if (!row) continue;
+    if (row.clientEvent) clientEvents.push({ date: row.dateStr, event: row.clientEvent });
+    events.push(...parsePersonCells(sheet, rowIdx, row.dateStr, state.currentWeekNumber));
   }
 
   return { events, clientEvents, errors };

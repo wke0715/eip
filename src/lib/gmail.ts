@@ -27,6 +27,7 @@ export async function sendViaGmail(params: {
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const compiler = nodemailer.createTransport({
+    // NOSONAR - streamTransport only compiles email locally, no network connection
     streamTransport: true,
     buffer: true,
   } as any);
