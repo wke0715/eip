@@ -15,7 +15,16 @@ import {
   parseYearMonthItems,
   safeZodParse,
   retryOnUniqueViolation,
+  createWorkflowApprovalsAndNotify,
+  createFormSubmission,
+  advanceResubmit,
 } from "@/lib/submission-helpers";
+
+import { resolveWorkflowApprovers } from "@/lib/workflow";
+import { generateFormNumber } from "@/lib/form-number";
+
+const mockResolveWorkflowApprovers = vi.mocked(resolveWorkflowApprovers);
+const mockGenerateFormNumber = vi.mocked(generateFormNumber);
 
 // ─── parseItemsJson ───────────────────────────────────────────
 
@@ -176,5 +185,131 @@ describe("retryOnUniqueViolation", () => {
     const fn = vi.fn().mockRejectedValue(p2002);
     await expect(retryOnUniqueViolation(fn, 3)).rejects.toThrow();
     expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
+
+// ─── createWorkflowApprovalsAndNotify ─────────────────────────
+
+describe("createWorkflowApprovalsAndNotify", () => {
+  function makeTx() {
+    return {
+      approvalAction: {
+        create: vi.fn().mockResolvedValue({}),
+        findFirst: vi.fn().mockResolvedValue({ approverId: "approver-1" }),
+      },
+      notification: { create: vi.fn().mockResolvedValue({}) },
+    };
+  }
+
+  it("steps 為空且無 notification 不應建立任何資料", async () => {
+    mockResolveWorkflowApprovers.mockResolvedValue([]);
+    const tx = makeTx();
+    await createWorkflowApprovalsAndNotify(tx as never, {
+      submissionId: "sub-1",
+      applicantId: "user-1",
+      workflowSteps: [],
+    });
+    expect(tx.approvalAction.create).not.toHaveBeenCalled();
+    expect(tx.notification.create).not.toHaveBeenCalled();
+  });
+
+  it("有審核者應建立 ApprovalAction", async () => {
+    mockResolveWorkflowApprovers.mockResolvedValue([
+      { stepOrder: 1, approverId: "approver-1" },
+    ]);
+    const tx = makeTx();
+    await createWorkflowApprovalsAndNotify(tx as never, {
+      submissionId: "sub-1",
+      applicantId: "user-1",
+      workflowSteps: [{ stepOrder: 1, approverRole: "USER:approver-1" }],
+    });
+    expect(tx.approvalAction.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("有 notification 應建立通知", async () => {
+    mockResolveWorkflowApprovers.mockResolvedValue([
+      { stepOrder: 1, approverId: "approver-1" },
+    ]);
+    const tx = makeTx();
+    await createWorkflowApprovalsAndNotify(tx as never, {
+      submissionId: "sub-1",
+      applicantId: "user-1",
+      workflowSteps: [{ stepOrder: 1, approverRole: "USER:approver-1" }],
+      notification: { title: "待審核", message: "請假單等待審核" },
+    });
+    expect(tx.notification.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── createFormSubmission ─────────────────────────────────────
+
+describe("createFormSubmission", () => {
+  it("有流程步驟應建立 PENDING 狀態的表單", async () => {
+    const mockSub = { id: "sub-1", status: "PENDING" };
+    const tx = {
+      formSubmission: { create: vi.fn().mockResolvedValue(mockSub) },
+    };
+    mockGenerateFormNumber.mockResolvedValue("LV-20260425-0001");
+
+    const result = await createFormSubmission(tx as never, {
+      formType: "LEAVE",
+      applicantId: "user-1",
+      workflowSteps: [{ stepOrder: 1 }],
+      dateStr: "20260425",
+    });
+
+    expect(tx.formSubmission.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "PENDING" }) })
+    );
+    expect(result.formNumber).toBe("LV-20260425-0001");
+  });
+
+  it("無流程步驟應建立 APPROVED 狀態的表單", async () => {
+    const tx = {
+      formSubmission: { create: vi.fn().mockResolvedValue({ id: "sub-2" }) },
+    };
+    mockGenerateFormNumber.mockResolvedValue("LV-20260425-0002");
+
+    await createFormSubmission(tx as never, {
+      formType: "LEAVE",
+      applicantId: "user-1",
+      workflowSteps: [],
+      dateStr: "20260425",
+    });
+
+    expect(tx.formSubmission.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "APPROVED" }) })
+    );
+  });
+});
+
+// ─── advanceResubmit ──────────────────────────────────────────
+
+describe("advanceResubmit", () => {
+  it("應更新表單狀態並建立新一輪審核", async () => {
+    mockResolveWorkflowApprovers.mockResolvedValue([
+      { stepOrder: 1, approverId: "approver-1" },
+    ]);
+    const tx = {
+      approvalAction: {
+        aggregate: vi.fn().mockResolvedValue({ _max: { round: 1 } }),
+        create: vi.fn().mockResolvedValue({}),
+        findFirst: vi.fn().mockResolvedValue({ approverId: "approver-1" }),
+      },
+      formSubmission: { update: vi.fn().mockResolvedValue({}) },
+      notification: { create: vi.fn().mockResolvedValue({}) },
+    };
+
+    await advanceResubmit(tx as never, {
+      submissionId: "sub-1",
+      applicantId: "user-1",
+      workflowSteps: [{ stepOrder: 1, approverRole: "USER:approver-1" }],
+      notification: { title: "重送審核", message: "表單已重送" },
+    });
+
+    expect(tx.formSubmission.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "sub-1" } })
+    );
+    expect(tx.approvalAction.create).toHaveBeenCalled();
   });
 });
