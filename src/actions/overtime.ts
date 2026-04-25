@@ -19,6 +19,7 @@ import {
   advanceResubmit,
   createFormSubmission,
 } from "@/lib/submission-helpers";
+import { notifyApproverOnSubmit } from "@/lib/mailer";
 
 function computeTotals(items: OvertimeItemInput[]) {
   const totalWorkHours = items.reduce((sum, it) => sum + (it.workHours ?? 0), 0);
@@ -120,6 +121,11 @@ export async function submitOvertimeRequest(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/overtime");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
+
   return { id: submissionId };
 }
 
@@ -176,6 +182,10 @@ export async function resubmitOvertimeRequest(submissionId: string, formData: Fo
   revalidatePath("/");
   revalidatePath("/overtime");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
 }
 
 export async function cancelOvertimeRequest(submissionId: string) {

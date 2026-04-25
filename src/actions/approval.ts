@@ -4,6 +4,11 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import {
+  notifyApproverOnSubmit,
+  notifyApplicantApproved,
+  notifyApplicantRejected,
+} from "@/lib/mailer";
 
 export async function approveForm(submissionId: string, comment?: string) {
   const session = await auth();
@@ -91,6 +96,12 @@ export async function approveForm(submissionId: string, comment?: string) {
 
   revalidatePath("/");
   revalidatePath("/inbox");
+
+  if (isLastStep) {
+    notifyApplicantApproved(submissionId).catch((e) => console.error("[EIP email] notifyApplicantApproved", e instanceof Error ? e.message : e));
+  } else {
+    notifyApproverOnSubmit(submissionId, submission.currentStep + 1).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
 }
 
 export async function rejectForm(submissionId: string, comment?: string) {
@@ -148,6 +159,8 @@ export async function rejectForm(submissionId: string, comment?: string) {
 
   revalidatePath("/");
   revalidatePath("/inbox");
+
+  notifyApplicantRejected(submissionId, comment).catch((e) => console.error("[EIP email] notifyApplicantRejected", e instanceof Error ? e.message : e));
 }
 
 export async function cancelSubmission(submissionId: string) {

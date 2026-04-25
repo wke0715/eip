@@ -216,3 +216,185 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+// ─── 表單簽核 email 通知 ───
+
+const FORM_TYPE_NAMES: Record<string, string> = {
+  LEAVE: "請假單",
+  EXPENSE: "出差旅費報告單",
+  OVERTIME: "加班單",
+  OTHER_EXPENSE: "其他費用申請單",
+};
+
+function pickFormNumber(sub: {
+  leaveRequest?: { formNumber: string } | null;
+  expenseReport?: { formNumber: string } | null;
+  overtimeRequest?: { formNumber: string } | null;
+  otherExpenseRequest?: { formNumber: string } | null;
+}): string {
+  return (
+    sub.leaveRequest?.formNumber ??
+    sub.expenseReport?.formNumber ??
+    sub.overtimeRequest?.formNumber ??
+    sub.otherExpenseRequest?.formNumber ??
+    ""
+  );
+}
+
+function buildApprovalMailHtml(
+  title: string,
+  rows: [string, string][],
+  footer?: string,
+): string {
+  const rowsHtml = rows
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:#666;white-space:nowrap;">${label}</td>` +
+        `<td style="padding:6px 0;"><strong>${escapeHtml(value)}</strong></td></tr>`,
+    )
+    .join("");
+  return (
+    `<div style="font-family:-apple-system,'Segoe UI',sans-serif;max-width:520px;">` +
+    `<h2 style="margin:0 0 16px;">${escapeHtml(title)}</h2>` +
+    `<table style="border-collapse:collapse;width:100%;">${rowsHtml}</table>` +
+    (footer ? `<p style="margin-top:16px;font-size:14px;">${footer}</p>` : "") +
+    `</div>`
+  );
+}
+
+const formDetailInclude = {
+  applicant: { select: { name: true, email: true } },
+  leaveRequest: { select: { formNumber: true } },
+  expenseReport: { select: { formNumber: true } },
+  overtimeRequest: { select: { formNumber: true } },
+  otherExpenseRequest: { select: { formNumber: true } },
+} as const;
+
+/** 通知簽核者有新表單待簽（初次送出用 stepOrder=1，進入下一關傳對應的 stepOrder）*/
+export async function notifyApproverOnSubmit(
+  submissionId: string,
+  stepOrder = 1,
+): Promise<void> {
+  console.log(`[EIP email] notifyApproverOnSubmit submissionId=${submissionId} stepOrder=${stepOrder}`);
+  const action = await prisma.approvalAction.findFirst({
+    where: { submissionId, stepOrder },
+    include: {
+      approver: { select: { email: true } },
+      submission: { include: formDetailInclude },
+    },
+    orderBy: { round: "desc" },
+  });
+  if (!action?.approver.email) {
+    console.log(`[EIP email] notifyApproverOnSubmit: no action found or email missing, skipping`);
+    return;
+  }
+
+  const sub = action.submission;
+  const formTypeName = FORM_TYPE_NAMES[sub.formType] ?? sub.formType;
+  const formNumber = pickFormNumber(sub);
+  const applicantName = sub.applicant.name ?? sub.applicant.email ?? "";
+  const { from } = await getSenderConfig();
+  const siteUrl = process.env.NEXTAUTH_URL ?? "";
+  const inboxUrl = siteUrl ? `${siteUrl}/inbox` : "";
+
+  await sendViaGmail({
+    from,
+    to: [action.approver.email],
+    subject: `[待簽核] ${formTypeName}｜${applicantName}`,
+    text: [
+      `${applicantName} 提交了一張${formTypeName}（${formNumber}），需要您的簽核。`,
+      "",
+      inboxUrl ? `前往收件匣：${inboxUrl}` : "請登入 EIP 系統前往收件匣簽核。",
+    ].join("\n"),
+    html: buildApprovalMailHtml(
+      `新的待簽核${formTypeName}`,
+      [["表單編號", formNumber], ["申請人", applicantName]],
+      inboxUrl
+        ? `請前往 <a href="${inboxUrl}">收件匣</a> 簽核。`
+        : "請登入 EIP 系統前往收件匣簽核。",
+    ),
+  });
+}
+
+/** 通知申請人表單已全部核准 */
+export async function notifyApplicantApproved(submissionId: string): Promise<void> {
+  console.log(`[EIP email] notifyApplicantApproved submissionId=${submissionId}`);
+  const sub = await prisma.formSubmission.findUniqueOrThrow({
+    where: { id: submissionId },
+    include: formDetailInclude,
+  });
+  if (!sub.applicant.email) {
+    console.log(`[EIP email] notifyApplicantApproved: applicant email missing, skipping`);
+    return;
+  }
+
+  const formTypeName = FORM_TYPE_NAMES[sub.formType] ?? sub.formType;
+  const formNumber = pickFormNumber(sub);
+  const { from } = await getSenderConfig();
+  const siteUrl = process.env.NEXTAUTH_URL ?? "";
+  const outboxUrl = siteUrl ? `${siteUrl}/outbox` : "";
+
+  await sendViaGmail({
+    from,
+    to: [sub.applicant.email],
+    subject: `[已核准] ${formTypeName}｜${formNumber}`,
+    text: [
+      `您的${formTypeName}（${formNumber}）已通過所有關卡核准。`,
+      "",
+      outboxUrl ? `前往寄件匣：${outboxUrl}` : "請登入 EIP 系統查看。",
+    ].join("\n"),
+    html: buildApprovalMailHtml(
+      "申請已核准",
+      [["表單編號", formNumber], ["表單類型", formTypeName], ["結果", "已核准"]],
+      outboxUrl ? `請前往 <a href="${outboxUrl}">寄件匣</a> 查看。` : "",
+    ),
+  });
+}
+
+/** 通知申請人表單已退簽 */
+export async function notifyApplicantRejected(
+  submissionId: string,
+  comment?: string | null,
+): Promise<void> {
+  console.log(`[EIP email] notifyApplicantRejected submissionId=${submissionId}`);
+  const sub = await prisma.formSubmission.findUniqueOrThrow({
+    where: { id: submissionId },
+    include: formDetailInclude,
+  });
+  if (!sub.applicant.email) {
+    console.log(`[EIP email] notifyApplicantRejected: applicant email missing, skipping`);
+    return;
+  }
+
+  const formTypeName = FORM_TYPE_NAMES[sub.formType] ?? sub.formType;
+  const formNumber = pickFormNumber(sub);
+  const { from } = await getSenderConfig();
+  const siteUrl = process.env.NEXTAUTH_URL ?? "";
+  const outboxUrl = siteUrl ? `${siteUrl}/outbox` : "";
+
+  const rows: [string, string][] = [
+    ["表單編號", formNumber],
+    ["表單類型", formTypeName],
+    ["結果", "已退簽"],
+  ];
+  if (comment) rows.push(["退簽意見", comment]);
+
+  await sendViaGmail({
+    from,
+    to: [sub.applicant.email],
+    subject: `[已退簽] ${formTypeName}｜${formNumber}`,
+    text: [
+      `您的${formTypeName}（${formNumber}）已被退簽。`,
+      comment ? `退簽意見：${comment}` : "",
+      "",
+      outboxUrl ? `前往寄件匣：${outboxUrl}` : "請登入 EIP 系統查看或重送。",
+    ]
+      .filter((l) => l !== "")
+      .join("\n"),
+    html: buildApprovalMailHtml(
+      "申請已退簽",
+      rows,
+      outboxUrl ? `請前往 <a href="${outboxUrl}">寄件匣</a> 查看或重送。` : "",
+    ),
+  });
+}

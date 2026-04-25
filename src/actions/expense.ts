@@ -20,6 +20,7 @@ import {
   advanceResubmit,
   createFormSubmission,
 } from "@/lib/submission-helpers";
+import { notifyApproverOnSubmit } from "@/lib/mailer";
 
 function computeTotals(items: ExpenseItemInput[]) {
   const normalized = items.map((it) => ({
@@ -133,6 +134,11 @@ export async function submitExpenseReport(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/expense");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
+
   return { id: submissionId };
 }
 
@@ -190,6 +196,10 @@ export async function resubmitExpenseReport(submissionId: string, formData: Form
   revalidatePath("/");
   revalidatePath("/expense");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
 }
 
 export async function cancelExpenseReport(submissionId: string) {

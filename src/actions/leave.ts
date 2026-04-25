@@ -10,6 +10,7 @@ import { cancelSubmission } from "@/actions/approval";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { upsertAttachment } from "@/lib/attachment";
+import { notifyApproverOnSubmit } from "@/lib/mailer";
 
 type TxClient = Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
@@ -168,6 +169,10 @@ export async function submitLeaveRequest(formData: FormData) {
   revalidatePath("/leave");
   revalidatePath("/outbox");
 
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submission.id).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
+
   return { id: submission.id };
 }
 
@@ -270,6 +275,10 @@ export async function resubmitLeaveRequest(submissionId: string, formData: FormD
   revalidatePath("/");
   revalidatePath("/leave");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
 }
 
 export async function cancelLeaveRequest(submissionId: string) {

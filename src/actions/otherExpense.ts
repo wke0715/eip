@@ -20,6 +20,7 @@ import {
   advanceResubmit,
   createFormSubmission,
 } from "@/lib/submission-helpers";
+import { notifyApproverOnSubmit } from "@/lib/mailer";
 
 function computeTotals(items: OtherExpenseItemInput[]) {
   const normalized = items.map((it) => ({
@@ -122,6 +123,11 @@ export async function submitOtherExpenseRequest(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/other-expense");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
+
   return { id: submissionId };
 }
 
@@ -179,6 +185,10 @@ export async function resubmitOtherExpenseRequest(submissionId: string, formData
   revalidatePath("/");
   revalidatePath("/other-expense");
   revalidatePath("/outbox");
+
+  if (workflowSteps.length > 0) {
+    notifyApproverOnSubmit(submissionId).catch((e) => console.error("[EIP email] notifyApproverOnSubmit", e instanceof Error ? e.message : e));
+  }
 }
 
 export async function cancelOtherExpenseRequest(submissionId: string) {
