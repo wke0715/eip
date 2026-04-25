@@ -1,0 +1,180 @@
+import { describe, it, expect, vi } from "vitest";
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
+
+vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/lib/workflow", () => ({ resolveWorkflowApprovers: vi.fn() }));
+vi.mock("@/lib/form-number", () => ({ generateFormNumber: vi.fn() }));
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+
+import {
+  parseItemsJson,
+  toDateOnly,
+  toDateStr,
+  mapExpenseItems,
+  parseYearMonthItems,
+  safeZodParse,
+  retryOnUniqueViolation,
+} from "@/lib/submission-helpers";
+
+// ─── parseItemsJson ───────────────────────────────────────────
+
+describe("parseItemsJson", () => {
+  it("null 應回傳空陣列", () => {
+    expect(parseItemsJson(null)).toEqual([]);
+  });
+
+  it("空字串應回傳空陣列", () => {
+    expect(parseItemsJson("")).toEqual([]);
+  });
+
+  it("只有空白字元應回傳空陣列", () => {
+    expect(parseItemsJson("   ")).toEqual([]);
+  });
+
+  it("合法 JSON 陣列應解析成功", () => {
+    expect(parseItemsJson('[{"id":1},{"id":2}]')).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it("非法 JSON 應拋出「明細資料格式錯誤」", () => {
+    expect(() => parseItemsJson("not-json")).toThrow("明細資料格式錯誤");
+  });
+});
+
+// ─── toDateOnly & toDateStr ───────────────────────────────────
+
+describe("toDateOnly", () => {
+  it("日期字串應轉為台北時間午夜的 Date 物件", () => {
+    const d = toDateOnly("2026-04-25");
+    // 台北 +08:00 午夜 = UTC 16:00 前一天
+    expect(d.toISOString()).toBe("2026-04-24T16:00:00.000Z");
+  });
+});
+
+describe("toDateStr", () => {
+  it("UTC Date 應轉回台北日期字串", () => {
+    // 2026-04-24T16:00:00Z = 台北 2026-04-25T00:00:00
+    const d = new Date("2026-04-24T16:00:00Z");
+    expect(toDateStr(d)).toBe("2026-04-25");
+  });
+
+  it("toDateOnly → toDateStr 應形成 round-trip", () => {
+    expect(toDateStr(toDateOnly("2026-04-25"))).toBe("2026-04-25");
+  });
+});
+
+// ─── mapExpenseItems ──────────────────────────────────────────
+
+describe("mapExpenseItems", () => {
+  it("應正確映射 DB 欄位到 ExpenseItemInput", () => {
+    const dbItem = {
+      date: new Date("2026-04-24T16:00:00Z"), // 台北 2026-04-25
+      days: 1,
+      workCategory: "C",
+      workDetail: "客戶_ABC",
+      mileageSubsidy: 100,
+      parkingFee: 50,
+      etcFee: 30,
+      gasFee: 0,
+      transportType: "T",
+      transportAmount: 200,
+      mealType: "B",
+      mealAmount: 80,
+      otherKind: null,
+      otherName: null,
+      otherAmount: 0,
+      subtotal: 460,
+      receipts: 2,
+      remark: "備註",
+    };
+
+    const [mapped] = mapExpenseItems([dbItem]);
+
+    expect(mapped.date).toBe("2026-04-25");
+    expect(mapped.days).toBe(1);
+    expect(mapped.workCategory).toBe("C");
+    expect(mapped.mileageSubsidy).toBe(100);
+    expect(mapped.transportType).toBe("T");
+    expect(mapped.mealType).toBe("B");
+    expect(mapped.remark).toBe("備註");
+  });
+
+  it("空陣列應回傳空陣列", () => {
+    expect(mapExpenseItems([])).toEqual([]);
+  });
+});
+
+// ─── parseYearMonthItems ──────────────────────────────────────
+
+describe("parseYearMonthItems", () => {
+  it("應從 FormData 解析 year、month 和 items", () => {
+    const fd = new FormData();
+    fd.append("year", "2026");
+    fd.append("month", "4");
+    fd.append("items", '[{"id":1}]');
+
+    const result = parseYearMonthItems(fd);
+    expect(result.year).toBe(2026);
+    expect(result.month).toBe(4);
+    expect(result.items).toEqual([{ id: 1 }]);
+  });
+});
+
+// ─── safeZodParse ─────────────────────────────────────────────
+
+describe("safeZodParse", () => {
+  const schema = z.object({ name: z.string(), age: z.number() });
+
+  it("合法資料應回傳解析結果", () => {
+    expect(safeZodParse(schema, { name: "佑霖", age: 30 })).toEqual({
+      name: "佑霖",
+      age: 30,
+    });
+  });
+
+  it("非法資料應拋出 Error（含 Zod 錯誤訊息）", () => {
+    expect(() => safeZodParse(schema, { name: 123, age: "abc" })).toThrow(Error);
+  });
+});
+
+// ─── retryOnUniqueViolation ───────────────────────────────────
+
+describe("retryOnUniqueViolation", () => {
+  it("第一次成功應直接回傳結果", async () => {
+    const fn = vi.fn().mockResolvedValue("ok");
+    const result = await retryOnUniqueViolation(fn);
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("非 P2002 錯誤應立即拋出，不重試", async () => {
+    const err = new Error("其他錯誤");
+    const fn = vi.fn().mockRejectedValue(err);
+    await expect(retryOnUniqueViolation(fn, 5)).rejects.toThrow("其他錯誤");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("P2002 衝突後成功應重試並回傳結果", async () => {
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
+      code: "P2002",
+      clientVersion: "6.0.0",
+    });
+    const fn = vi.fn()
+      .mockRejectedValueOnce(p2002)
+      .mockResolvedValue("retry-ok");
+
+    const result = await retryOnUniqueViolation(fn, 3);
+    expect(result).toBe("retry-ok");
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("超過 maxAttempts 仍衝突應最終拋出", async () => {
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
+      code: "P2002",
+      clientVersion: "6.0.0",
+    });
+    const fn = vi.fn().mockRejectedValue(p2002);
+    await expect(retryOnUniqueViolation(fn, 3)).rejects.toThrow();
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
