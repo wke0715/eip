@@ -1,24 +1,36 @@
 import type { Metadata } from "next";
-import { DM_Sans, DM_Mono, Noto_Sans_TC } from "next/font/google";
+import {
+  Fraunces,
+  Inter_Tight,
+  Noto_Serif_TC,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const fraunces = Fraunces({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "900"],
+  style: ["normal", "italic"],
+});
+
+const interTight = Inter_Tight({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const dmMono = DM_Mono({
-  variable: "--font-dm-mono",
+const notoSerifTC = Noto_Serif_TC({
+  variable: "--font-serif",
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["300", "400", "500", "600", "700", "900"],
+  preload: false,
 });
 
-const notoSansTC = Noto_Sans_TC({
-  variable: "--font-noto",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
-  preload: false,
+  weight: ["300", "400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +46,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-TW"
-      className={`${dmSans.variable} ${dmMono.variable} ${notoSansTC.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${interTight.variable} ${notoSerifTC.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

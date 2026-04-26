@@ -27,7 +27,12 @@ export function DashboardShell({
 
   return (
     <div className="flex h-screen">
-      <Sidebar isAdmin={isAdmin} companyName={companyName} />
+      <Sidebar
+        isAdmin={isAdmin}
+        companyName={companyName}
+        user={user}
+        onSignOut={() => logoutAction()}
+      />
       <MobileNav
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
@@ -35,12 +40,19 @@ export function DashboardShell({
         companyName={companyName}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header
-          user={user}
-          onMenuClick={() => setMobileMenuOpen(true)}
-          onSignOut={() => logoutAction()}
-        />
-        <main className="flex-1 overflow-y-auto px-8 py-7">{children}</main>
+        <div className="md:hidden">
+          <Header
+            user={user}
+            onMenuClick={() => setMobileMenuOpen(true)}
+            onSignOut={() => logoutAction()}
+          />
+        </div>
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{ padding: "56px 64px 80px" }}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

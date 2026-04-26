@@ -38,37 +38,46 @@ export function Header({ user, onMenuClick, onSignOut }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </button>
         <span className="flex items-center gap-2 md:hidden">
-          <svg width="24" height="24" viewBox="0 0 56 56" aria-hidden="true">
-            <g transform="translate(8, 8)">
-              <rect
-                x="0"
-                y="0"
-                width="40"
-                height="40"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <line
-                x1="0"
-                y1="20"
-                x2="40"
-                y2="20"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <line
-                x1="20"
-                y1="20"
-                x2="20"
-                y2="40"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <circle cx="10" cy="10" r="2" fill="currentColor" />
-            </g>
+          <svg
+            width="22"
+            height="28"
+            viewBox="0 0 44 56"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="22" y1="2" x2="22" y2="6" />
+            <ellipse cx="22" cy="8" rx="9" ry="2" />
+            <path d="M13 10 C 8 16, 8 26, 12 32 L 32 32 C 36 26, 36 16, 31 10" />
+            <line
+              x1="13"
+              y1="20"
+              x2="31"
+              y2="20"
+              strokeDasharray="2 2"
+              opacity="0.5"
+            />
+            <path d="M30 14 L 40 12 L 36 18" />
+            <path d="M13 16 C 6 18, 6 24, 13 26" />
+            <line x1="14" y1="32" x2="11" y2="44" />
+            <line x1="22" y1="32" x2="22" y2="46" />
+            <line x1="30" y1="32" x2="33" y2="44" />
+            <line x1="9" y1="48" x2="35" y2="48" strokeWidth="0.8" />
           </svg>
-          <span className="text-lg font-bold tracking-wide">企盉 EIP</span>
+          <span
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: "18px",
+              fontWeight: 600,
+              fontStyle: "italic",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Hé · 盉
+          </span>
         </span>
       </div>
 
