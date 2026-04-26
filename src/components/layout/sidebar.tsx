@@ -38,10 +38,40 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex w-52 flex-col border-r bg-background">
+    <aside className="hidden md:flex w-52 flex-col border-r bg-sidebar">
       <div className="flex h-14 items-center border-b px-4">
-        <Link href="/" className="text-lg font-bold">
-          {companyName}
+        <Link href="/" className="flex items-center gap-2">
+          <svg width="28" height="28" viewBox="0 0 56 56" aria-hidden="true">
+            <g transform="translate(8, 8)">
+              <rect
+                x="0"
+                y="0"
+                width="40"
+                height="40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="0"
+                y1="20"
+                x2="40"
+                y2="20"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="20"
+                y1="20"
+                x2="20"
+                y2="40"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <circle cx="10" cy="10" r="2" fill="currentColor" />
+            </g>
+          </svg>
+          <span className="text-lg font-bold tracking-wide">{companyName}</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">

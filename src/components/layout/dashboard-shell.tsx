@@ -40,7 +40,7 @@ export function DashboardShell({
           onMenuClick={() => setMobileMenuOpen(true)}
           onSignOut={() => logoutAction()}
         />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto px-8 py-7">{children}</main>
       </div>
     </div>
   );

@@ -26,7 +26,7 @@ export function Header({ user, onMenuClick, onSignOut }: HeaderProps) {
         .map((n) => n[0])
         .join("")
         .slice(0, 2)
-    : user.email?.[0]?.toUpperCase() ?? "?";
+    : (user.email?.[0]?.toUpperCase() ?? "?");
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-background px-4">
@@ -37,7 +37,39 @@ export function Header({ user, onMenuClick, onSignOut }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="text-lg font-bold md:hidden">企盉 EIP</span>
+        <span className="flex items-center gap-2 md:hidden">
+          <svg width="24" height="24" viewBox="0 0 56 56" aria-hidden="true">
+            <g transform="translate(8, 8)">
+              <rect
+                x="0"
+                y="0"
+                width="40"
+                height="40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="0"
+                y1="20"
+                x2="40"
+                y2="20"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="20"
+                y1="20"
+                x2="20"
+                y2="40"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <circle cx="10" cy="10" r="2" fill="currentColor" />
+            </g>
+          </svg>
+          <span className="text-lg font-bold tracking-wide">企盉 EIP</span>
+        </span>
       </div>
 
       <DropdownMenu>
